@@ -52,3 +52,10 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
+# Matlab
+*.asv
+*.m~
+*.mex*
+
+*.h5
+*.nii
