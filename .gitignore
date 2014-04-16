@@ -60,6 +60,7 @@ docs/_build/
 *.h5
 *.nii
 *.gz
-.iml
-.xml
-.pyc
+*.iml
+*.xml
+*.pyc
+*.name
