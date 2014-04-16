@@ -1,16 +1,20 @@
 
 rng(1); % Initialize the random seed
 
-nSamples = 30 * 35 * 138;
+nSamples = 1000;
 patchWidth = 29;
-fileName = ['./../data/mridata_', num2str(patchWidth), '_',...
-    num2str(nSamples), '_', date '.h5'];
 
+
+radius = floor(patchWidth / 2);
 mriFolder = './mri/';
 labelFolder = './label/';
 nClasses = 138;
 
-radius = floor(patchWidth / 2);
+
+divisor = (35 * 138);
+nSamples = ceil(nSamples / divisor) * divisor;
+fileName = ['./../data/mridata_', num2str(patchWidth), '_',...
+    num2str(nSamples), '_', date '.h5'];
 
 files = dir([mriFolder '*.nii']);
 nFiles = length(files);
