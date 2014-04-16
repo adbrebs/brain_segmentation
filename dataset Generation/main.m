@@ -5,7 +5,6 @@ nSamples = 100000;
 patchWidth = 31;
 
 mriFolder = './mri/';
-maskFolder = './mask/';
 labelFolder = './label/';
 nClasses = 139;
 
@@ -24,7 +23,7 @@ voxelsP = cell(1,nFiles);
 orientationsP = cell(1,nFiles);
 
 tic
-parfor i = 1:nFiles
+for i = 1:nFiles
     
     samplesP{i} = zeros(nSPerFile, patchWidth^2);
     targetsP{i} = zeros(nSPerFile, 1);
@@ -32,8 +31,9 @@ parfor i = 1:nFiles
     orientationsP{i} = zeros(nSPerFile, 3);
     
     % Open and crop the image to only keep the brain
-    [mri, label, ~] = cropFile(files(i).name);
-    mri.img(label.img == 0) = 0;
+    [mri, label] = openNII(files(i).name);
+    [mri, label] = cropFile(mri, label);
+    mri.img(label.img == 0) = 0; % Only keep the brain
     
     dims = size(mri.img);
     
@@ -73,12 +73,12 @@ clear samplesP targetsP pointsP orientationsP
 % Permute the data
 pe = randperm(nSPerFile*nFiles);
 samples = samples(pe,:);
-targets = targets(pe,:);
+%targets = targets(pe,:);
 voxels = voxels(pe,:);
 orientations = orientations(pe,:);
 
 %% Save the data on the disk
-fileName = 'mridata.h5';
+fileName = 'mridataBad.h5';
 h5create(fileName, '/inputs', size(samples))
 h5create(fileName, '/targets', size(targets))
 h5create(fileName, '/points', size(voxels))
@@ -91,6 +91,7 @@ h5write(fileName, '/orientations', orientations)
 
 
 %% Read the data
+fileName = 'mridata.h5';
 samples = h5read(fileName, '/inputs');
 
 % Display one patch
