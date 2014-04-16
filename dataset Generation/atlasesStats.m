@@ -29,10 +29,12 @@ parfor i = 1:nFiles
 end
 
 
-%classesProp = bsxfun(@rdivide, classesProp, sum(classesProp,2));
+classesProp = bsxfun(@rdivide, classesProp, sum(classesProp,2));
 
 propMean = mean(classesProp);
 propVar = std(classesProp);
+
+boxplot(classesProp, 'plotstyle','compact')
 
 [propSort, idx] = sort(propMean);
 propVar(idx);

@@ -1,12 +1,14 @@
 
 rng(1); % Initialize the random seed
 
-nSamples = 100000;
-patchWidth = 31;
+nSamples = 30 * 35 * 138;
+patchWidth = 29;
+fileName = ['./../data/mridata_', num2str(patchWidth), '_',...
+    num2str(nSamples), '_', date '.h5'];
 
 mriFolder = './mri/';
 labelFolder = './label/';
-nClasses = 139;
+nClasses = 138;
 
 radius = floor(patchWidth / 2);
 
@@ -22,9 +24,10 @@ voxelsP = cell(1,nFiles);
 % normal vectors of the slices containing the patches
 orientationsP = cell(1,nFiles);
 
+
 tic
-for i = 1:nFiles
-    
+parfor i = 1:nFiles
+
     samplesP{i} = zeros(nSPerFile, patchWidth^2);
     targetsP{i} = zeros(nSPerFile, 1);
     voxelsP{i} = zeros(nSPerFile, 3);
@@ -32,15 +35,14 @@ for i = 1:nFiles
     
     % Open and crop the image to only keep the brain
     [mri, label] = openNII(files(i).name);
-    [mri, label] = cropFile(mri, label);
+    [mri, label] = cropImg(mri, label);
     mri.img(label.img == 0) = 0; % Only keep the brain
     
     dims = size(mri.img);
     
     % Select random voxels inside the brain and label the future patch
-    inBrain = find(label.img);
-    r = randi(length(inBrain), nSPerFile, 1);
-    linIdx = inBrain(r);
+    % linIdx = pickVoxelsRandomly(label.img, nSPerFile);
+    linIdx = pickBalancedVoxels(label.img, nClasses, nSPerFile);
     [x, y, z] = ind2sub(dims, linIdx);
     targetsP{i} = label.img(linIdx);
     voxelsP{i} = [x, y, z];
@@ -73,12 +75,11 @@ clear samplesP targetsP pointsP orientationsP
 % Permute the data
 pe = randperm(nSPerFile*nFiles);
 samples = samples(pe,:);
-%targets = targets(pe,:);
+targets = targets(pe,:);
 voxels = voxels(pe,:);
 orientations = orientations(pe,:);
 
 %% Save the data on the disk
-fileName = 'mridataBad.h5';
 h5create(fileName, '/inputs', size(samples))
 h5create(fileName, '/targets', size(targets))
 h5create(fileName, '/points', size(voxels))
@@ -90,11 +91,11 @@ h5write(fileName, '/orientations', orientations)
 
 
 
-%% Read the data
-fileName = 'mridata.h5';
-samples = h5read(fileName, '/inputs');
-
-% Display one patch
-slice = reshape(samples(4,:), patchWidth, patchWidth);
-colormap(gray)
-imagesc(slice) 
+% %% Read the data
+% fileName = './../data/mridata.h5';
+% samples = h5read(fileName, '/inputs');
+% 
+% % Display one patch
+% slice = reshape(samples(4,:), patchWidth, patchWidth);
+% colormap(gray)
+% imagesc(slice) 
