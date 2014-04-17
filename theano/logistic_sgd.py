@@ -184,7 +184,7 @@ def load_data(dataset):
     return rval
 
 
-def sgd_optimization(dataset, learning_rate=0.13, n_epochs=1000, batch_size=20):
+def sgd_optimization(dataset, learning_rate=0.13, n_epochs=1000, batch_size=200):
     """
     Demonstrate stochastic gradient descent optimization of a log-linear
     model

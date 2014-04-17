@@ -1,6 +1,6 @@
-function [ linIdx ] = pickBalancedVoxels(labelImg, nClasses, nSPerFile)
+function [ linIdx ] = pickBalancedVoxels(labelImg, nClasses, nVPerFile)
 
-nPerRegion = nSPerFile / nClasses;
+nPerRegion = nVPerFile / nClasses;
 
 linIdx = zeros(nPerRegion*nClasses,1);
 

@@ -1,7 +1,7 @@
-function [linIdx] = pickVoxelsRandomly(labelImg, nSPerFile)
+function [linIdx] = pickVoxelsRandomly(labelImg, nClasses, nVPerFile)
 
 inBrain = find(labelImg);
-r = randi(length(inBrain), nSPerFile, 1);
+r = randi(length(inBrain), nVPerFile, 1);
 linIdx = inBrain(r);
 
 end

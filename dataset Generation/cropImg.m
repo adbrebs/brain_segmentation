@@ -8,5 +8,7 @@ lim3 = lims(3,1):lims(3,2);
 mri.img = mri.img(lim1, lim2, lim3);
 label.img = label.img(lim1, lim2, lim3);
 
+mri.img(label.img == 0) = 0; % Only keep the brain
+
 end
 

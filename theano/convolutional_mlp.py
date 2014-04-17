@@ -104,7 +104,7 @@ class LeNetConvPoolLayer(object):
 
 
 def evaluate_lenet5(dataset, learning_rate=0.1, n_epochs=200,
-                    nkerns=[20, 50], batch_size=20):
+                    nkerns=[20, 50], batch_size=200):
     """
 
     :type learning_rate: float
