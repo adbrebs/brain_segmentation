@@ -172,7 +172,7 @@ class MLP(object):
         self.params = self.hiddenLayer.params + self.logRegressionLayer.params
 
 
-def test_mlp(dataset, learning_rate=0.01, L1_reg=0.00, L2_reg=0.0001, n_epochs=1000,
+def test_mlp(training_data, testing_data, learning_rate=0.01, L1_reg=0.00, L2_reg=0.0001, n_epochs=1000,
             batch_size=200, n_hidden=500):
     """
     Demonstrate stochastic gradient descent optimization for a multilayer
@@ -198,7 +198,7 @@ def test_mlp(dataset, learning_rate=0.01, L1_reg=0.00, L2_reg=0.0001, n_epochs=1
 
 
    """
-    datasets = load_data(dataset)
+    datasets = load_data(training_data, testing_data)
 
     train_set_x, train_set_y = datasets[0]
     valid_set_x, valid_set_y = datasets[1]
@@ -351,7 +351,4 @@ def test_mlp(dataset, learning_rate=0.01, L1_reg=0.00, L2_reg=0.0001, n_epochs=1
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 2:
-        test_mlp(str(sys.argv[1]))
-    else:
-        test_mlp('mridataBalanced.h5')
+    test_mlp(str(sys.argv[1]), str(sys.argv[2]))

@@ -110,8 +110,18 @@ class LogisticRegression(object):
         else:
             raise NotImplementedError()
 
+    def errors_average(self, y, batch_size, n_patches_per_voxel):
+        b = batch_size/n_patches_per_voxel;
+        s = 0.0
+        for i in xrange(b-1):
+            s += T.neq(T.argmax((T.mean(self.p_y_given_x[n_patches_per_voxel*i:n_patches_per_voxel*(i+1)-1, :], axis=0))), y[n_patches_per_voxel*i])
 
-def load_data(dataset):
+        s /= b
+
+        return s
+
+
+def load_data(training_data, testing_data):
     ''' Loads the dataset
 
     :type dataset: string
@@ -122,26 +132,21 @@ def load_data(dataset):
     # LOAD DATA #
     #############
 
-    data_dir, data_file = os.path.split(dataset)
-    if data_dir == "" and not os.path.isfile(dataset):
-        # Check if dataset is in the data directory.
-        new_path = os.path.join(os.path.split(__file__)[0], "..", "data", dataset)
-        if os.path.isfile(new_path):
-            dataset = new_path
-
 
     print '... loading data'
 
-    f = h5py.File(dataset, driver='core', backing_store=False)
+    f = h5py.File(training_data, driver='core', backing_store=False)
     set_x = f['/inputs'].value.transpose()
     set_y = f['/targets'].value[0,:]
     f.close()
-    ndata = set_x.shape[0]
-    split1 = int(0.8*ndata)
-    split2 = int(0.9*ndata)
-    train_set = (set_x[0:split1-1, :], set_y[0:split1-1])
-    test_set = (set_x[split1:split2-1, :], set_y[split1:split2-1])
-    valid_set = (set_x[split2:ndata, :], set_y[split2:ndata])
+    n_data = set_x.shape[0]
+    split = int(0.9 * n_data)
+    train_set = (set_x[0:split-1, :], set_y[0:split-1])
+    valid_set = (set_x[split:n_data, :], set_y[split:n_data])
+
+    f = h5py.File(testing_data, driver='core', backing_store=False)
+    test_set = (f['/inputs'].value.transpose(), f['/targets'].value[0,:])
+    f.close()
 
     #train_set, valid_set, test_set format: tuple(input, target)
     #input is an numpy.ndarray of 2 dimensions (a matrix)
@@ -184,7 +189,7 @@ def load_data(dataset):
     return rval
 
 
-def sgd_optimization(dataset, learning_rate=0.13, n_epochs=1000, batch_size=200):
+def sgd_optimization(training_data, testing_data, learning_rate=0.13, n_epochs=1000, batch_size=200):
     """
     Demonstrate stochastic gradient descent optimization of a log-linear
     model
@@ -200,7 +205,7 @@ def sgd_optimization(dataset, learning_rate=0.13, n_epochs=1000, batch_size=200)
     :param dataset:
 
     """
-    datasets = load_data(dataset)
+    datasets = load_data(training_data, testing_data)
 
     train_set_x, train_set_y = datasets[0]
     valid_set_x, valid_set_y = datasets[1]
@@ -213,6 +218,7 @@ def sgd_optimization(dataset, learning_rate=0.13, n_epochs=1000, batch_size=200)
     n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
     n_valid_batches = valid_set_x.get_value(borrow=True).shape[0] / batch_size
     n_test_batches = test_set_x.get_value(borrow=True).shape[0] / batch_size
+    n_patches_per_voxel = 10
 
     ######################
     # BUILD ACTUAL MODEL #
@@ -245,6 +251,12 @@ def sgd_optimization(dataset, learning_rate=0.13, n_epochs=1000, batch_size=200)
             givens={
                 x: valid_set_x[index * batch_size:(index + 1) * batch_size],
                 y: valid_set_y[index * batch_size:(index + 1) * batch_size]})
+
+    test_model_avg = theano.function(inputs=[index],
+            outputs=classifier.errors_average(y, batch_size, n_patches_per_voxel),
+            givens={
+                x: test_set_x[index * batch_size: (index + 1) * batch_size],
+                y: test_set_y[index * batch_size: (index + 1) * batch_size]})
 
     # compute the gradient of cost with respect to theta = (W,b)
     g_W = T.grad(cost=cost, wrt=classifier.W)
@@ -316,14 +328,21 @@ def sgd_optimization(dataset, learning_rate=0.13, n_epochs=1000, batch_size=200)
                     best_validation_loss = this_validation_loss
                     # test it on the test set
 
-                    test_losses = [test_model(i)
-                                   for i in xrange(n_test_batches)]
+                    test_losses_avg = [test_model_avg(i) for i in xrange(n_test_batches)]
+                    test_score_avg = numpy.mean(test_losses_avg)
+
+                    test_losses = [test_model(i) for i in xrange(n_test_batches)]
                     test_score = numpy.mean(test_losses)
 
                     print(('     epoch %i, minibatch %i/%i, test error of best'
                        ' model %f %%') %
                         (epoch, minibatch_index + 1, n_train_batches,
                          test_score * 100.))
+
+                    print(('     epoch %i, minibatch %i/%i, avg test error of best'
+                       ' model %f %%') %
+                        (epoch, minibatch_index + 1, n_train_batches,
+                         test_score_avg * 100.))
 
             if patience <= iter:
                 done_looping = True
@@ -340,8 +359,8 @@ def sgd_optimization(dataset, learning_rate=0.13, n_epochs=1000, batch_size=200)
                           ' ran for %.1fs' % ((end_time - start_time)))
 
 if __name__ == '__main__':
-    if len(sys.argv) == 2:
-        sgd_optimization(str(sys.argv[1]))
-        print 'salut'
-    else:
-        sgd_optimization('mridata_29_4830_16-Apr-2014.h5')
+    # a = '/Users/adeb/Documents/Programmation/brain-parcellation/data/' + 'training.h5'
+    # b = '/Users/adeb/Documents/Programmation/brain-parcellation/data/' + 'testing.h5'
+    # sgd_optimization(a, b)
+    sgd_optimization(str(sys.argv[1]), str(sys.argv[2]))
+

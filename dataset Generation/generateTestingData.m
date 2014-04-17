@@ -1,7 +1,7 @@
 
 rng(1); % Initialize the random seed
 
-nVoxels = 100;
+nVoxels = 10000;
 patchWidth = 29;
 nPatchPerVoxel = 10;
 nClasses = 138;
@@ -9,7 +9,7 @@ nClasses = 138;
 
 [samples, targets, voxels, orientations] = extractPatches(...
     nClasses, patchWidth, nVoxels, nPatchPerVoxel, ...
-    @pickVoxelsRandomly, false, false);
+    @pickVoxelsRandomly, false, true);
 
 
 %% Read the data

@@ -103,7 +103,7 @@ class LeNetConvPoolLayer(object):
         self.params = [self.W, self.b]
 
 
-def evaluate_lenet5(dataset, learning_rate=0.1, n_epochs=200,
+def evaluate_lenet5(training_data, testing_data, learning_rate=0.1, n_epochs=200,
                     nkerns=[20, 50], batch_size=200):
     """
 
@@ -123,7 +123,7 @@ def evaluate_lenet5(dataset, learning_rate=0.1, n_epochs=200,
 
     rng = numpy.random.RandomState(23455)
 
-    datasets = load_data(dataset)
+    datasets = load_data(training_data, testing_data)
 
     train_set_x, train_set_y = datasets[0]
     valid_set_x, valid_set_y = datasets[1]
@@ -136,6 +136,7 @@ def evaluate_lenet5(dataset, learning_rate=0.1, n_epochs=200,
     n_train_batches /= batch_size
     n_valid_batches /= batch_size
     n_test_batches /= batch_size
+    n_patches_per_voxel = 10
 
     # allocate symbolic variables for the data
     index = T.lscalar()  # index to a [mini]batch
@@ -203,6 +204,13 @@ def evaluate_lenet5(dataset, learning_rate=0.1, n_epochs=200,
             givens={
                 x: valid_set_x[index * batch_size: (index + 1) * batch_size],
                 y: valid_set_y[index * batch_size: (index + 1) * batch_size]})
+
+    test_model_avg = theano.function(inputs=[index],
+            outputs=layer3.errors_average(y, batch_size, n_patches_per_voxel),
+            givens={
+                x: test_set_x[index * batch_size: (index + 1) * batch_size],
+                y: test_set_y[index * batch_size: (index + 1) * batch_size]})
+
 
     # create a list of all model parameters to be fit by gradient descent
     params = layer3.params + layer2.params + layer1.params + layer0.params
@@ -281,6 +289,8 @@ def evaluate_lenet5(dataset, learning_rate=0.1, n_epochs=200,
                     best_validation_loss = this_validation_loss
                     best_iter = iter
 
+                    test_losses_avg = [test_model_avg(i) for i in xrange(n_test_batches)]
+                    test_score_avg = numpy.mean(test_losses_avg)
                     # test it on the test set
                     test_losses = [test_model(i) for i in xrange(n_test_batches)]
                     test_score = numpy.mean(test_losses)
@@ -288,6 +298,12 @@ def evaluate_lenet5(dataset, learning_rate=0.1, n_epochs=200,
                            'model %f %%') %
                           (epoch, minibatch_index + 1, n_train_batches,
                            test_score * 100.))
+
+                    print(('     epoch %i, minibatch %i/%i, avg test error of best '
+                           'model %f %%') %
+                          (epoch, minibatch_index + 1, n_train_batches,
+                           test_score_avg * 100.))
+
 
             if patience <= iter:
                 done_looping = True
@@ -303,10 +319,10 @@ def evaluate_lenet5(dataset, learning_rate=0.1, n_epochs=200,
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
 if __name__ == '__main__':
-    if len(sys.argv) == 2:
-        evaluate_lenet5(str(sys.argv[1]))
-    else:
-        evaluate_lenet5('mridataBalanced.h5')
+    # a = '/Users/adeb/Documents/Programmation/brain-parcellation/data/' + 'training.h5'
+    # b = '/Users/adeb/Documents/Programmation/brain-parcellation/data/' + 'testing.h5'
+    # evaluate_lenet5(a,b)
+    evaluate_lenet5(str(sys.argv[1]), str(sys.argv[2]))
 
 
 def experiment(state, channel):
