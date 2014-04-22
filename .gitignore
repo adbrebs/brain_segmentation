@@ -64,3 +64,5 @@ docs/_build/
 *.xml
 *.pyc
 *.name
+*.txt
+*.pdf

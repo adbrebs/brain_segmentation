@@ -1,12 +1,23 @@
-function [mri, label] = openNII(fileName)
+function [mri, label] = openNII(fileCouple, reCodeClasses)
 
-mriFolder = './mri/';
-labelFolder = './label/';
+mriPath = fileCouple{1};
+labelPath = fileCouple{2};
 
-disp(fileName)
+disp(mriPath)
 
-mri = load_nii([mriFolder fileName]); 
-label = load_nii([labelFolder fileName]);
+mri = load_nii(mriPath); 
+label = load_nii(labelPath);
+
+if ~reCodeClasses
+    return
+end
+
+% Change the class labels
+classes = unique(label.img);
+newClasses = 0:length(classes);
+disp(length(classes))
+[a,b] = ismember(label.img, classes);
+label.img(a) = newClasses(b(a));
 
 end
 
