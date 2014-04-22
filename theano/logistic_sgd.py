@@ -138,14 +138,19 @@ def load_data(training_data, testing_data):
     f = h5py.File(training_data, driver='core', backing_store=False)
     set_x = f['/inputs'].value.transpose()
     set_y = f['/targets'].value[0,:]
+    n_classes = int(f.attrs['n_classes'])
     f.close()
     n_data = set_x.shape[0]
     split = int(0.9 * n_data)
-    train_set = (set_x[0:split-1, :], set_y[0:split-1])
-    valid_set = (set_x[split:n_data, :], set_y[split:n_data])
+    train_set_x = set_x[0:split-1, :]
+    train_set_y = set_y[0:split-1]
+    valid_set_x = set_x[split:n_data, :]
+    valid_set_y = set_y[split:n_data]
 
     f = h5py.File(testing_data, driver='core', backing_store=False)
-    test_set = (f['/inputs'].value.transpose(), f['/targets'].value[0,:])
+    test_set_x = f['/inputs'].value.transpose()
+    test_set_y = f['/targets'].value[0, :]
+    n_patch_per_voxel_testing = int(f.attrs['n_patch_per_voxel'])
     f.close()
 
     #train_set, valid_set, test_set format: tuple(input, target)
@@ -155,7 +160,7 @@ def load_data(training_data, testing_data):
     #the number of rows in the input. It should give the target
     #target to the example with the same index in the input.
 
-    def shared_dataset(data_xy, borrow=True):
+    def shared_dataset(data_x, data_y, borrow=True):
         """ Function that loads the dataset into shared variables
 
         The reason we store our dataset in shared variables is to allow
@@ -164,13 +169,8 @@ def load_data(training_data, testing_data):
         is needed (the default behaviour if the data is not in a shared
         variable) would lead to a large decrease in performance.
         """
-        data_x, data_y = data_xy
-        shared_x = theano.shared(numpy.asarray(data_x,
-                                               dtype=theano.config.floatX),
-                                 borrow=borrow)
-        shared_y = theano.shared(numpy.asarray(data_y,
-                                               dtype=theano.config.floatX),
-                                 borrow=borrow)
+        shared_x = theano.shared(numpy.asarray(data_x, dtype=theano.config.floatX), borrow=borrow)
+        shared_y = theano.shared(numpy.asarray(data_y, dtype=theano.config.floatX), borrow=borrow)
         # When storing data on the GPU it has to be stored as floats
         # therefore we will store the labels as ``floatX`` as well
         # (``shared_y`` does exactly that). But during our computations
@@ -180,12 +180,12 @@ def load_data(training_data, testing_data):
         # lets ous get around this issue
         return shared_x, T.cast(shared_y, 'int32')
 
-    test_set_x, test_set_y = shared_dataset(test_set)
-    valid_set_x, valid_set_y = shared_dataset(valid_set)
-    train_set_x, train_set_y = shared_dataset(train_set)
+    test_set_x, test_set_y = shared_dataset(test_set_x, test_set_y)
+    valid_set_x, valid_set_y = shared_dataset(valid_set_x, valid_set_y)
+    train_set_x, train_set_y = shared_dataset(train_set_x, train_set_y)
 
     rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),
-            (test_set_x, test_set_y)]
+            (test_set_x, test_set_y), n_classes, n_patch_per_voxel_testing]
     return rval
 
 
