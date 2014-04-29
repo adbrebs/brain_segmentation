@@ -11,14 +11,15 @@ import theano.tensor as T
 
 
 class Trainer():
-    def __init__(self, net, ds):
+    def __init__(self, config, net, ds):
         print '... configure training'
+
+        self.batch_size = config.getint('training', 'batch_size')
+        self.learning_rate = config.getfloat('training', 'learning_rate')
+        self.n_epochs = config.getint('training', 'n_epochs')
+
         self.nn = net
         self.ds = ds
-
-        self.learning_rate = 0.13
-        self.n_epochs = 200
-        self.batch_size = 200
 
         self.n_train_batches = ds.n_train / self.batch_size
         self.n_valid_batches = ds.n_valid / self.batch_size

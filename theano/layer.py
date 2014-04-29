@@ -87,3 +87,12 @@ class LayerSoftMax(LayerFullyConnected):
                                name='b', borrow=True)
 
         return w, b
+
+
+class LayerConv2D(Layer):
+    def __init__(self, n_in, n_out, x):
+        Layer.__init__(self, n_in, n_out, x)
+
+        self.w, self.b = self.init()
+
+        self.params = [self.w, self.b]

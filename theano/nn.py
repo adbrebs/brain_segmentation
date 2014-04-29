@@ -1,22 +1,24 @@
 __author__ = 'adeb'
 
 
+import theano.tensor as T
+
 import layer
 
 
 class Network():
-    def __init__(self, n_in, n_out, x):
+    def __init__(self, n_in, n_out):
         print '... initialize the model'
         self.n_in = n_in
         self.n_out = n_out
-        self.x = x
+        self.x = T.matrix('x')
 
 
 class Network1(Network):
-    def __init__(self, n_in, n_out, x):
-        Network.__init__(self, n_in, n_out, x)
+    def __init__(self, n_in, n_out):
+        Network.__init__(self, n_in, n_out)
 
-        self.layers = [layer.LayerTan(n_in, 500, x)]
+        self.layers = [layer.LayerTan(n_in, 500, self.x)]
         self.layers.append(layer.LayerSoftMax(500, n_out, self.layers[-1].y))
 
         self.y = self.layers[-1].y

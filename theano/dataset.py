@@ -8,9 +8,12 @@ import theano
 
 
 class Dataset():
-    def __init__(self, training_data, testing_data):
+    def __init__(self, config):
 
         print '... loading data'
+
+        training_data = config.get('dataset', 'training_data')
+        testing_data = config.get('dataset', 'testing_data')
 
         # Load training data
         f = h5py.File(training_data, driver='core', backing_store=False)
