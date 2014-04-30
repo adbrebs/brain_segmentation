@@ -65,10 +65,8 @@ class Trainer():
 
         # early-stopping parameters
         patience = 10000  # look as this many examples regardless
-        patience_increase = 2  # wait this much longer when a new best is
-                               # found
-        improvement_threshold = 0.995  # a relative improvement of this much is
-                                       # considered significant
+        patience_increase = 1000  # wait this much longer when a new best is found
+        improvement_threshold = 0.995  # a relative improvement of this much is considered significant
         validation_frequency = min(self.n_train_batches, patience / 2)
                                       # go through this many
                                       # minibatche before checking the network
@@ -113,7 +111,7 @@ class Trainer():
 
                 #improve patience if loss improvement is good enough
                 if this_validation_loss < best_validation_loss * improvement_threshold:
-                    patience = max(patience, id_mini_batch * patience_increase)
+                    patience += patience_increase
 
                 # save best validation score and iteration number
                 best_validation_loss = this_validation_loss
