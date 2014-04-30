@@ -1,5 +1,6 @@
 __author__ = 'adeb'
 
+import sys
 import ConfigParser
 
 import theano
@@ -12,8 +13,11 @@ import trainer
 
 if __name__ == '__main__':
     config = ConfigParser.ConfigParser()
-    # config.read(str(sys.argv[1]))
-    config.read('adeb.ini')
+    if len(sys.argv) == 1:
+        config.read('adeb.ini')
+    else:
+        config.read(str(sys.argv[1]))
+
     theano.sandbox.cuda.use(config.get('general', 'gpu'))
 
     ds = Dataset(config)
