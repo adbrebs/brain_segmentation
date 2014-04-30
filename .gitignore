@@ -66,3 +66,4 @@ docs/_build/
 *.name
 *.txt
 *.pdf
+*.swp
