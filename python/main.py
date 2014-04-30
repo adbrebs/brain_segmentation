@@ -18,7 +18,10 @@ if __name__ == '__main__':
 
     ds = Dataset(config)
 
-    net = nn.Network1(ds.patch_width * ds.patch_width, ds.n_classes)
+    # net = nn.Network1(ds.patch_width * ds.patch_width, ds.n_classes)
+
+    batch_size = config.getint('training', 'batch_size')
+    net = nn.Network2(ds.patch_width, ds.patch_width * ds.patch_width, ds.n_classes, batch_size)
 
     t = trainer.Trainer(config, net, ds)
     t.train()
