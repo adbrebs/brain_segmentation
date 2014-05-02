@@ -26,7 +26,7 @@ function targets = pickTargetCentered(labelImg, vxLinIdx, patchLinIdx, nClasses)
 nSamples = size(vxLinIdx,1);
 targets = zeros(nSamples, nClasses);
 
-idx = sub2ind(size(targets), 1:nSamples, labelImg(vxLinIdx));
+idx = sub2ind(size(targets), (1:nSamples)', labelImg(vxLinIdx));
 targets(idx) = 1;
 
 end

@@ -5,8 +5,8 @@ samples = h5read(fileName, '/inputs');
 % Display one patch
 %slice = reshape(samples(4,:), patchWidth, patchWidth);
 
-mri = './miccai/mri/1000.nii';
-mask = './miccai/label/1000.nii';
+mri = './miccai/mri/1019.nii';
+mask = './miccai/label/1019.nii';
 
 [mri, label] = openNII({mri,mask}, false);
 [mri, label] = cropImg(mri, label);

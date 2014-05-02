@@ -13,8 +13,8 @@ nFiles = length(fileList);
 % par file and per class
 divisor = (nFiles * nClasses);
 nVoxels = ceil(nVoxels / divisor) * divisor;
-nVPerFile = ceil(nVoxels / nFiles);
-nSamples = nVoxels * nPatchPerVoxel;
+nVPerFile = nVoxels / nFiles;
+nPatches = nVoxels * nPatchPerVoxel;
 nSPerFile = nVPerFile * nPatchPerVoxel; % number of samples per file
 
 % Initialize the containers that will store the samples for each file
@@ -46,11 +46,11 @@ for i = 1:nFiles
 end
 
 % Aggregate the data (required for parallelization)
-samples = zeros(nSamples, patchWidth^2);
-patchLinIdx = zeros(nSamples, patchWidth^2);
-targets = zeros(nSamples, nClasses);
-voxels = zeros(nSamples, 3);
-orientations = zeros(nSamples, 3);
+samples = zeros(nPatches, patchWidth^2);
+patchLinIdx = zeros(nPatches, patchWidth^2);
+targets = zeros(nPatches, nClasses);
+voxels = zeros(nPatches, 3);
+orientations = zeros(nPatches, 3);
 for i = 1:nFiles
     idxs = 1+(i-1)*nSPerFile:i*nSPerFile;
     samples(idxs,:) = samplesP{i};
@@ -73,20 +73,20 @@ end
 
 fileName = ['../data/' fileName];
 % Save the data on the disk
-h5create(fileName, '/inputs', size(samples))
+h5create(fileName, '/patches', size(samples))
 h5create(fileName, '/targets', size(targets))
-h5create(fileName, '/points', size(voxels))
+h5create(fileName, '/voxels', size(voxels))
 h5create(fileName, '/orientations', size(orientations))
-h5write(fileName, '/inputs', samples)
+h5write(fileName, '/patches', samples)
 h5write(fileName, '/targets', targets)
-h5write(fileName, '/points', voxels)
+h5write(fileName, '/voxels', voxels)
 h5write(fileName, '/orientations', orientations)
 
 % attributes
 h5writeatt(fileName,'/','creation_date',datestr(now));
 h5writeatt(fileName,'/','n_voxels', nVoxels);
 h5writeatt(fileName,'/','n_patch_per_voxel', nPatchPerVoxel);
-h5writeatt(fileName,'/','n_samples', nSamples);
+h5writeatt(fileName,'/','n_patches', nPatches);
 h5writeatt(fileName,'/','patch_width', patchWidth);
 h5writeatt(fileName,'/','n_classes', nClasses);
 

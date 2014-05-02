@@ -4,7 +4,7 @@ switch mode
     case 'balanced'
         pickVoxelFUN = @pickVxBalanced;
     case 'inPlane'
-        pickVoxelFUN = @pickVxInPlane;
+        pickVoxelFUN = @pickVxRandomlyInPlane;
     case 'random'
         pickVoxelFUN = @pickVxRandomly;
     otherwise
@@ -39,10 +39,18 @@ end
 
 end
 
-function [voxels, vxLinIdx] = pickVxInPlane(labelImg, nClasses, nVPerFile, nPatchPerVoxel)
+function [voxels, vxLinIdx] = pickVxRandomlyInPlane(labelImg, nClasses, nVPerFile, nPatchPerVoxel)
 
 y = 100;
+plan = zeros(size(labelImg));
+plan(:,y,:) = 1;
+labelImg(~plan) = 0;
 
+inBrain = find(labelImg);
+r = randi(length(inBrain), nVPerFile, 1);
+vxLinIdx = inBrain(r);
+
+[voxels, vxLinIdx] = duplicateVx(vxLinIdx, labelImg, nPatchPerVoxel);
 
 end
 

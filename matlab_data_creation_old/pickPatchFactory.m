@@ -83,7 +83,7 @@ for j = 1:nSPerFile
     v3(v3<1) = 1; v3(v3>dims(3)) = dims(3); 
 
     [X,Y,Z] = meshgrid(v1, v2, v3);
-    buff = sub2ind(size(img), X, Y, Z);
+    buff = sub2ind(dims, X, Y, Z);
     linIdx(j,:) = buff(:);
     
     patch = img(v1,v2,v3);

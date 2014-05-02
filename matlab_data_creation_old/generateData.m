@@ -8,28 +8,28 @@ fileList = listMICCAI('./');
 
 %% Training Data
 
-nVoxels = 10000;
+nVoxels = 100000;
 nPatchPerVoxel = 1;
-pickVoxelFUN = pickVxFactory('balanced');
+pickVoxelFUN = pickVxFactory('inPlane');
 pickPatchFUN = pickPatchFactory('parallelXZ');
-pickTargetFUN = pickTargetFactory('proportion');
+pickTargetFUN = pickTargetFactory('centered');
 
 [samples, targets, voxels, orientations] = extractPatches(fileList, ...
     nClasses, patchWidth, nVoxels, nPatchPerVoxel, ...
     pickVoxelFUN, pickPatchFUN, pickTargetFUN, ...
-    true, 'training_par_tar.h5');
+    true, 'training1.h5');
 
 %% Testing Data
 
 nVoxels = 2000;
 nPatchPerVoxel = 1;
-pickVoxelFUN = pickVxFactory('random');
+pickVoxelFUN = pickVxFactory('inPlane');
 pickPatchFUN = pickPatchFactory('parallelXZ');
-pickTargetFUN = pickTargetFactory('proportion');
+pickTargetFUN = pickTargetFactory('centered');
 
 extractPatches(fileList, ...
     nClasses, patchWidth, nVoxels, nPatchPerVoxel, ...
     pickVoxelFUN, pickPatchFUN, pickTargetFUN, ...
-    false, 'testing_par_tar.h5');
+    false, 'testing1.h5');
 
 

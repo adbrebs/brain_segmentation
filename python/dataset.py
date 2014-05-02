@@ -17,12 +17,12 @@ class Dataset():
         print '... loading data ' + training_data + ' and ' + testing_data
 
         # Load training data
-        f = h5py.File(training_data, driver='core', backing_store=False)
-        set_x = f['/inputs'].value.transpose()
-        set_y = f['/targets'].value.transpose()
+        f = h5py.File(training_data, mode="r")
+        set_x = f['/patches'].value
+        set_y = f['/targets'].value
         self.n_classes = int(f.attrs['n_classes'])
         self.patch_width = int(f.attrs['patch_width'])
-        self.n_data = int(f.attrs['n_samples'])
+        self.n_data = int(f.attrs['n_patches'])
         f.close()
 
         # Create a validation set
@@ -33,9 +33,9 @@ class Dataset():
         valid_y = set_y[validatioin_split:self.n_data, :]
 
         # Load testing data
-        f = h5py.File(testing_data, driver='core', backing_store=False)
-        test_x = f['/inputs'].value.transpose()
-        test_y = f['/targets'].value.transpose()
+        f = h5py.File(testing_data, mode="r")
+        test_x = f['/patches'].value
+        test_y = f['/targets'].value
         self.n_patch_per_voxel_testing = int(f.attrs['n_patch_per_voxel'])
         f.close()
 
@@ -53,4 +53,5 @@ class Dataset():
         self.n_train = self.train_x.get_value(borrow=True).shape[0]
         self.n_valid = self.valid_x.get_value(borrow=True).shape[0]
         self.n_test = self.test_x.get_value(borrow=True).shape[0]
+
 
