@@ -15,13 +15,36 @@ from pick_patch import *
 from pick_target import *
 
 
-class DatasetCreator():
-    def __init__(self, ini_file):
+class Dataset():
+    def __init__(self):
 
-        cf = ConfigParser.ConfigParser()
-        cf.read(ini_file)
+        self.file_list = None
+        self.n_classes = None
+        self.n_files = None
 
-        source = cf.get('general', 'source')
+        self.patch_width = None
+        self.n_vx = None
+        self.n_patch_per_voxel = None
+
+        self.pick_vx = None
+        self.pick_patch = None
+        self.pick_tg = None
+
+        self.n_vx_per_file = None
+        self.n_patches = None
+        self.n_patches_per_file = None
+
+        # Initialize the containers
+        self.patch = None
+        self.idx_patch = None
+        self.vx = None
+        self.tg = None
+
+    def generate(self, config_ini):
+
+        cat_ini = 'generate_data'
+
+        source = config_ini.get(cat_ini, 'source')
         if source == 'miccai':
             self.file_list = list_miccai_files()
             self.n_classes = 139
@@ -29,10 +52,10 @@ class DatasetCreator():
             print "error source"
 
         self.n_files = len(self.file_list)
-        self.patch_width = cf.getint('general', 'patch_width')
+        self.patch_width = config_ini.getint(cat_ini, 'patch_width')
 
-        self.n_vx = cf.getint('general', 'n_vx')
-        self.n_patch_per_voxel = cf.getint('general', 'n_patch_per_voxel')
+        self.n_vx = config_ini.getint(cat_ini, 'n_vx')
+        self.n_patch_per_voxel = config_ini.getint(cat_ini, 'n_patch_per_voxel')
 
         plan = np.array([0, 1, 0])
         self.pick_vx = PickVxRandomlyInPlane(self, plan)
@@ -46,13 +69,6 @@ class DatasetCreator():
         self.n_patches = self.n_vx * self.n_patch_per_voxel
         self.n_patches_per_file = self.n_patches / self.n_files
 
-        # Initialize the containers
-        self.patch = 0
-        self.idx_patch = 0
-        self.vx = 0
-        self.tg = 0
-
-    def create_dataset(self):
         self.patch = np.zeros((self.n_patches, self.patch_width**2))
         self.idx_patch = np.zeros((self.n_patches, self.patch_width**2), dtype=int)
         self.vx = np.zeros((self.n_patches, 3), dtype=int)
@@ -72,7 +88,8 @@ class DatasetCreator():
             self.pick_patch.pick_patch(id0, id1, mri, lab)
             self.pick_tg.pick_target(id0, id1, mri, lab)
 
-    def write_dataset(self, file_name):
+    def write(self, file_name):
+
         f = h5py.File("../data/" + file_name, "w")
         f.create_dataset("patches", data=self.patch, dtype='f')
         f.create_dataset("targets", data=self.tg, dtype='f')
@@ -87,18 +104,19 @@ class DatasetCreator():
         f.attrs['n_classes'] = self.n_classes
         f.close()
 
-    def read_dataset(self, file_name):
-        f = h5py.File("../data/" + file_name, "r")
-        self.patch = f["patches"]
-        self.tg = f["targets"]
-        self.vx = f["voxels"]
-        self.idx_patch = f["idx_patches"]
+    def read(self, file_name):
 
-        self.n_vx = f["n_vx"]
-        self.n_patch_per_voxel = f["n_patch_per_voxel"]
-        self.n_patches = f["n_patches"]
-        self.patch_width = f["patch_width"]
-        self.n_classes = f["n_classes"]
+        f = h5py.File("../data/" + file_name, "r")
+        self.patch = f["patches"].value
+        self.tg = f["targets"].value
+        self.vx = f["voxels"].value
+        self.idx_patch = f["idx_patches"].value
+
+        self.n_vx = int(f.attrs["n_vx"])
+        self.n_patch_per_voxel = int(f.attrs["n_patch_per_voxel"])
+        self.n_patches = int(f.attrs["n_patches"])
+        self.patch_width = int(f.attrs["patch_width"])
+        self.n_classes = int(f.attrs["n_classes"])
         f.close()
 
 
@@ -145,18 +163,19 @@ def crop_image(mri, lab):
 
     return mri, lab
 
+
 if __name__ == '__main__':
     if len(sys.argv) == 1:
-        training_file = "creation_training_data_1.ini"
-        testing_file = "creation_testing_data_1.ini"
+        ini_file = "creation_training_data_1.ini"
     else:
-        training_file = str(sys.argv[1])
-        testing_file = str(sys.argv[2])
+        ini_file = str(sys.argv[1])
 
-    dc_training = DatasetCreator(training_file)
-    dc_training.create_dataset()
-    dc_training.write_dataset("train1.h5")
+    # Load config
+    config_ini = ConfigParser.ConfigParser()
+    config_ini.read(ini_file)
+    file_name = config_ini.get('generate_data', 'file_name')
 
-    dc_testing = DatasetCreator(testing_file)
-    dc_training.create_dataset()
-    dc_training.write_dataset("test1.h5")
+    # Generate the dataset
+    dc_training = Dataset()
+    dc_training.generate(config_ini)
+    dc_training.write(file_name)

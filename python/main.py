@@ -6,26 +6,36 @@ import ConfigParser
 import theano
 import theano.sandbox.cuda
 
-from dataset import Dataset
+from database import DataBase
 import nn
 import trainer
 
 
-if __name__ == '__main__':
-    config = ConfigParser.ConfigParser()
+def load_config():
+    cf = ConfigParser.ConfigParser()
     if len(sys.argv) == 1:
-        config.read('adeb.ini')
+        cf.read('adeb.ini')
     else:
-        config.read(str(sys.argv[1]))
+        cf.read(str(sys.argv[1]))
+    theano.sandbox.cuda.use(cf.get('general', 'gpu'))
+    return cf
 
-    theano.sandbox.cuda.use(config.get('general', 'gpu'))
+if __name__ == '__main__':
 
-    ds = Dataset(config)
+    ### Load the config file
+    training_cf = load_config()
 
+    ### Create the database
+    ds = DataBase(training_cf)
+
+    ### Create the network
+    # MLP kind network
     # net = nn.Network1(ds.patch_width * ds.patch_width, ds.n_classes)
 
-    batch_size = config.getint('training', 'batch_size')
+    # CNN network
+    batch_size = training_cf.getint('training', 'batch_size')
     net = nn.Network2(ds.patch_width, ds.patch_width * ds.patch_width, ds.n_classes, batch_size)
 
-    t = trainer.Trainer(config, net, ds)
+    ### Train the network
+    t = trainer.Trainer(training_cf, net, ds)
     t.train()
