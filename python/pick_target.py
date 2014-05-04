@@ -11,6 +11,15 @@ class PickTarget():
         raise NotImplementedError
 
 
+class PickTgCentered(PickTarget):
+    def __init__(self, dataset):
+        PickTarget.__init__(self, dataset)
+
+    def pick_target(self, id0, id1, mri, label):
+        temp = self.ds.vx[id0:id1]
+        self.ds.tg[np.arange(id0, id1), label[[temp[:, i] for i in xrange(3)]]] = 1
+
+
 class PickTgProportion(PickTarget):
     def __init__(self, dataset):
         PickTarget.__init__(self, dataset)

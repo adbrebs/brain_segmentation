@@ -11,13 +11,11 @@ class PickPatch():
         raise NotImplementedError
 
 
-class PickPatchParallel(PickPatch):
-    def __init__(self, dataset, plan):
+class PickPatchParallelXZ(PickPatch):
+    def __init__(self, dataset):
         PickPatch.__init__(self, dataset)
-        self.plan = plan
 
     def pick_patch(self, id0, id1, mri, label):
-
         dims = mri.shape
         radius = self.ds.patch_width / 2
 

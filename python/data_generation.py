@@ -57,10 +57,9 @@ class Dataset():
         self.n_vx = config_ini.getint(cat_ini, 'n_vx')
         self.n_patch_per_voxel = config_ini.getint(cat_ini, 'n_patch_per_voxel')
 
-        plan = np.array([0, 1, 0])
-        self.pick_vx = PickVxRandomlyInPlane(self, plan)
-        self.pick_patch = PickPatchParallel(self, plan)
-        self.pick_tg = PickTgProportion(self)
+        self.pick_vx = PickVxRandomlyInPlaneXZ(self, y=100)
+        self.pick_patch = PickPatchParallelXZ(self)
+        self.pick_tg = PickTgCentered(self)
 
         # Re-adjust
         divisor = self.n_files * self.n_classes
@@ -80,8 +79,8 @@ class Dataset():
 
             mri_file, label_file = self.file_list[i]
             print mri_file
-            mri = nib.load(mri_file).get_data()
-            lab = nib.load(label_file).get_data()
+            mri = nib.load(mri_file).get_data().squeeze()
+            lab = nib.load(label_file).get_data().squeeze()
             mri, lab = crop_image(mri, lab)
 
             self.pick_vx.pick_voxel(id0, id1, mri, lab)
