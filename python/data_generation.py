@@ -59,7 +59,7 @@ class Dataset():
 
         self.pick_vx = PickVxRandomlyInPlaneXZ(self, y=100)
         self.pick_patch = PickPatchParallelXZ(self)
-        self.pick_tg = PickTgCentered(self)
+        self.pick_tg = PickTgProportion(self)
 
         # Re-adjust
         divisor = self.n_files * self.n_classes
@@ -73,6 +73,7 @@ class Dataset():
         self.vx = np.zeros((self.n_patches, 3), dtype=int)
         self.tg = np.zeros((self.n_patches, self.n_classes))
 
+        # Extract patches
         for i in xrange(self.n_files):
             id0 = i * self.n_patches_per_file
             id1 = id0 + self.n_patches_per_file
@@ -86,6 +87,17 @@ class Dataset():
             self.pick_vx.pick_voxel(id0, id1, mri, lab)
             self.pick_patch.pick_patch(id0, id1, mri, lab)
             self.pick_tg.pick_target(id0, id1, mri, lab)
+
+        # Permute data
+        self.is_perm = config_ini.getboolean(cat_ini, 'perm')
+        if self.is_perm:
+            perm = np.random.permutation(self.n_patches)
+            self.patch = self.patch[perm]
+            self.idx_patch = self.idx_patch[perm]
+            self.vx = self.vx[perm]
+            self.tg = self.tg[perm]
+
+
 
     def write(self, file_name):
 
@@ -101,6 +113,7 @@ class Dataset():
         f.attrs['n_patches'] = self.n_patches
         f.attrs['patch_width'] = self.patch_width
         f.attrs['n_classes'] = self.n_classes
+        f.attrs['is_perm'] = self.is_perm
         f.close()
 
     def read(self, file_name):
@@ -116,6 +129,7 @@ class Dataset():
         self.n_patches = int(f.attrs["n_patches"])
         self.patch_width = int(f.attrs["patch_width"])
         self.n_classes = int(f.attrs["n_classes"])
+        self.is_perm = bool(f.attrs['is_perm'])
         f.close()
 
 

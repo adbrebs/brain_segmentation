@@ -10,35 +10,25 @@ from theano.tensor.nnet import conv
 
 
 class Layer():
+    def __init__(self):
+        pass
 
-    def __init__(self, x):
+    def forward(self, x, batch_size):
+        """Return the output of the layer
+        Args:
+            x (theano.tensor.TensorType): input of the layer
+        Returns:
+            (theano.tensor.TensorType): output of the layer
         """
-        :type x: theano.tensor.TensorType
-        :param x: symbolic variable that describes the input of the layer
-        """
-        self.x = x
-
-        self.y = 0
-
-    def mse(self, y_true):
-        """Return the mean square error.
-
-        :type y_true: theano.tensor.TensorType
-        :param y_true: corresponds to a vector that gives for each example the
-                  corresponding output
-        """
-        return T.mean(T.sum((self.y - y_true) * (self.y - y_true), axis=1))
-
-    def errors(self, y_true):
-        return T.mean(T.neq(T.argmax(self.y, axis=1), T.argmax(y_true, axis=1)))
-
-    def negative_log_likelihood(self, y_true):
-        return -T.mean(T.sum(T.log(self.y) * y_true, axis=1))
+        pass
 
 
 class LayerFullyConnected(Layer):
-    def __init__(self, n_in, n_out, x):
-        Layer.__init__(self, x)
+    """
+    Layer in which each input is connected to all the layer neurones
+    """
+    def __init__(self, n_in, n_out):
+        Layer.__init__(self)
 
         self.n_in = n_in
         self.n_out = n_out
@@ -48,14 +38,15 @@ class LayerFullyConnected(Layer):
         self.params = [self.w, self.b]
 
     def init(self):
+        """
+        Initialize the parameters of the layer
+        """
         raise NotImplementedError
 
 
 class LayerTan(LayerFullyConnected):
-    def __init__(self, n_in, n_out, x):
-        LayerFullyConnected.__init__(self, n_in, n_out, x)
-
-        self.y = T.tanh(T.dot(x, self.w) + self.b)
+    def __init__(self, n_in, n_out):
+        LayerFullyConnected.__init__(self, n_in, n_out)
 
     def init(self):
         w_values = numpy.asarray(numpy.random.uniform(
@@ -70,12 +61,13 @@ class LayerTan(LayerFullyConnected):
 
         return w, b
 
+    def forward(self, x, batch_size):
+        return T.tanh(T.dot(x, self.w) + self.b)
+
 
 class LayerSoftMax(LayerFullyConnected):
-    def __init__(self, n_in, n_out, x):
-        LayerFullyConnected.__init__(self, n_in, n_out, x)
-
-        self.y = T.nnet.softmax(T.dot(x, self.w) + self.b)
+    def __init__(self, n_in, n_out):
+        LayerFullyConnected.__init__(self, n_in, n_out)
 
     def init(self):
         w_values = numpy.zeros((self.n_in, self.n_out), dtype=theano.config.floatX)
@@ -86,24 +78,32 @@ class LayerSoftMax(LayerFullyConnected):
 
         return w, b
 
+    def forward(self, x, batch_size):
+        return T.nnet.softmax(T.dot(x, self.w) + self.b)
+
 
 class LayerConvPool2D(Layer):
-    def __init__(self, x, image_shape, filter_shape, poolsize=(2, 2)):
+    """
+    Convolution + pooling layer
+    """
+    def __init__(self, image_shape, filter_shape, poolsize=(2, 2)):
         """
-        :type filter_shape: tuple or list of length 4
-        :param filter_shape: (number of filters, num input feature maps,
-                              filter height,filter width)
+        Args:
+            image_shape (tuple or list of length 3):
+            (num input feature maps, image height, image width)
 
-        :type image_shape: tuple or list of length 4
-        :param image_shape: (batch size, num input feature maps,
-                             image height, image width)
+            filter_shape (tuple or list of length 4):
+            (number of filters, num input feature maps, filter height,filter width)
 
-        :type poolsize: tuple or list of length 2
-        :param poolsize: the downsampling (pooling) factor (#rows,#cols)
+            poolsize (tuple or list of length 2):
+            the downsampling (pooling) factor (#rows,#cols)
         """
-        Layer.__init__(self, x)
+        Layer.__init__(self)
+        self.image_shape = image_shape
+        self.filter_shape = filter_shape
+        self.poolsize = poolsize
 
-        assert image_shape[1] == filter_shape[1]
+        assert image_shape[0] == filter_shape[1]
 
         # there are "num input feature maps * filter height * filter width"
         # inputs to each hidden unit
@@ -124,21 +124,26 @@ class LayerConvPool2D(Layer):
         b_values = numpy.zeros((filter_shape[0],), dtype=theano.config.floatX)
         self.b = theano.shared(value=b_values, borrow=True)
 
+        self.params = [self.w, self.b]
+
+    def forward(self, x, batch_size):
+        img_batch_shape = (batch_size,) + self.image_shape
+
+        x = x.reshape(img_batch_shape)
+
         # convolve input feature maps with filters
         conv_out = conv.conv2d(input=x,
                                filters=self.w,
-                               filter_shape=filter_shape,
-                               image_shape=image_shape)
+                               image_shape=img_batch_shape,
+                               filter_shape=self.filter_shape)
 
         # downsample each feature map individually, using maxpooling
         pooled_out = downsample.max_pool_2d(input=conv_out,
-                                            ds=poolsize,
+                                            ds=self.poolsize,
                                             ignore_border=True)
 
         # add the bias term. Since the bias is a vector (1D array), we first
         # reshape it to a tensor of shape (1,n_filters,1,1). Each bias will
         # thus be broadcasted across mini-batches and feature map
         # width & height
-        self.y = T.tanh(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
-
-        self.params = [self.w, self.b]
+        return T.tanh(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x')).flatten(2)

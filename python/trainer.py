@@ -1,7 +1,6 @@
 __author__ = 'adeb'
 
 import sys
-import os
 import time
 
 import numpy
@@ -18,45 +17,71 @@ class Trainer():
         self.learning_rate = config.getfloat('training', 'learning_rate')
         self.n_epochs = config.getint('training', 'n_epochs')
 
-        self.nn = net
         self.ds = ds
 
         self.n_train_batches = ds.n_train / self.batch_size
         self.n_valid_batches = ds.n_valid / self.batch_size
         self.n_test_batches = ds.n_test / self.batch_size
 
-        self.idx_batch = T.lscalar()
-        self.x = net.x  # Minibatch input matrix
-        self.y_true = T.matrix('y_true')  # True output of a minibatch
+        idx_batch = T.lscalar()
+        x = T.dmatrix('x')  # Minibatch input matrix
+        y_true = T.matrix('y_true')  # True output of a minibatch
+
+        # Outpurt of the network
+        y_pred = net.forward(x, self.batch_size)
 
         # Cost the trainer is going to minimize
-        self.cost = net.cost(self.y_true)
+        cost = self.mse(y_pred, y_true)
 
         # Compute gradients
-        self.params = net.params
-        self.grads = T.grad(self.cost, self.params)
+        params = net.params
+        self.grads = T.grad(cost, params)
 
         updates = []
-        for param_i, grad_i in zip(self.params, self.grads):
+        for param_i, grad_i in zip(params, self.grads):
             updates.append((param_i, param_i - self.learning_rate * grad_i))
 
-        id1 = self.idx_batch * self.batch_size
-        id2 = (self.idx_batch + 1) * self.batch_size
+        id1 = idx_batch * self.batch_size
+        id2 = (idx_batch + 1) * self.batch_size
         self.test_model = theano.function(
-            inputs=[self.idx_batch],
-            outputs=net.errors(self.y_true),
-            givens={self.x: ds.test_x[id1:id2], self.y_true: ds.test_y[id1:id2]})
+            inputs=[idx_batch],
+            outputs=self.errors(y_pred, y_true),
+            givens={x: ds.test_x[id1:id2], y_true: ds.test_y[id1:id2]})
 
         self.validate_model = theano.function(
-            inputs=[self.idx_batch],
-            outputs=net.errors(self.y_true),
-            givens={self.x: ds.valid_x[id1:id2], self.y_true: ds.valid_y[id1:id2]})
+            inputs=[idx_batch],
+            outputs=self.errors(y_pred, y_true),
+            givens={x: ds.valid_x[id1:id2], y_true: ds.valid_y[id1:id2]})
 
         self.train_model = theano.function(
-            inputs=[self.idx_batch],
-            outputs=self.cost,
+            inputs=[idx_batch],
+            outputs=cost,
             updates=updates,
-            givens={self.x: ds.train_x[id1:id2], self.y_true: ds.train_y[id1:id2]})
+            givens={x: ds.train_x[id1:id2], y_true: ds.train_y[id1:id2]})
+
+    def mse(self, y_pred, y_true):
+        """Return the mean square error
+        Args:
+            y_pred (theano.tensor.TensorType): output returned by a network
+            y_pred (theano.tensor.TensorType): output returned by a network
+        """
+        return T.mean(T.sum((y_pred - y_true) * (y_pred - y_true), axis=1))
+
+    def errors(self, y_pred, y_true):
+        """Return the error rate
+        Args:
+            y_pred (theano.tensor.TensorType): output returned by a network
+            y_pred (theano.tensor.TensorType): output returned by a network
+        """
+        return T.mean(T.neq(T.argmax(y_pred, axis=1), T.argmax(y_true, axis=1)))
+
+    def negative_log_likelihood(self, y_pred, y_true):
+        """Return the negative log-likelihood
+        Args:
+            y_pred (theano.tensor.TensorType): output returned by a network
+            y_pred (theano.tensor.TensorType): output returned by a network
+        """
+        return -T.mean(T.sum(T.log(y_pred) * y_true, axis=1))
 
     def train(self):
         print '... train the network'
