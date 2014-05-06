@@ -16,11 +16,29 @@ from pick_target import *
 
 
 class Dataset():
+    """
+    Create, store, save, load a dataset.
+
+    Attributes:
+        file_list: List of pairs (mri_file, label_file)
+        n_classes: Number of output classes in the dataset
+        patch_width: Size of the 2D patch
+        n_vx: Number of different voxels in the dataset
+        n_patch_per_voxel: There might be several different patches for each voxel
+        pick_vx(function): Function to pick voxels
+        pick_patch(function): Function to pick patches
+        pick_tg(function): Function to pick patches
+        is_perm(boolean): True if the data is unordered
+        patch(array n_patches x patch_width^2): Array containing the patches
+        idx_patch(array n_patches x patch_width^2): Array containing the indices of the voxels of the patches
+        vx(array n_patches x 3): Array containing the coordinates x, y, z of the voxels
+        tg(array n_patches x n_classes): Array containing the targets for each patch
+    """
     def __init__(self):
 
         self.file_list = None
-        self.n_classes = None
         self.n_files = None
+        self.n_classes = None
 
         self.patch_width = None
         self.n_vx = None
@@ -42,9 +60,13 @@ class Dataset():
         self.tg = None
 
     def generate(self, config_ini):
-
+        """
+        Generate a new dataset from a config file
+        """
+        print '... initialize the dataset'
         cat_ini = 'generate_data'
 
+        # Collect the file names
         source = config_ini.get(cat_ini, 'source')
         if source == 'miccai':
             self.file_list = list_miccai_files()
@@ -54,15 +76,10 @@ class Dataset():
 
         self.n_files = len(self.file_list)
         self.patch_width = config_ini.getint(cat_ini, 'patch_width')
-
         self.n_vx = config_ini.getint(cat_ini, 'n_vx')
         self.n_patch_per_voxel = config_ini.getint(cat_ini, 'n_patch_per_voxel')
 
-        self.pick_vx = PickVoxel("plane", "random")
-        self.pick_patch = PickPatchParallelXZ()
-        self.pick_tg = PickTgProportion()
-
-        # Re-adjust
+        # Re-adjust so there is no rounding problem with the number of files and classes
         divisor = self.n_files * self.n_classes
         self.n_vx = int(math.ceil(float(self.n_vx) / divisor) * divisor)
         self.n_vx_per_file = self.n_vx / self.n_files
@@ -74,21 +91,23 @@ class Dataset():
         self.vx = np.zeros((self.n_patches, 3), dtype=int)
         self.tg = np.zeros((self.n_patches, self.n_classes))
 
-        conv_mri_patch = ConverterMriPatch(self.n_vx_per_file, self.n_patch_per_voxel, self.patch_width,
-                                           self.pick_vx, self.pick_patch, self.pick_tg)
+        # Create the objects responsible for picking the voxels
+        self.pick_vx = self.createPickVoxel(config_ini)
+        self.pick_patch = PickPatchParallelXZ()
+        self.pick_tg = PickTgProportion()
+
+        # Create the mri-patch converter
+        conv_mri_patch = ConverterMriPatch(self.patch_width, self.pick_vx, self.pick_patch, self.pick_tg)
+
         # Extract patches
+        print '... fill the dataset'
         for i in xrange(self.n_files):
             id0 = i * self.n_patches_per_file
             id1 = id0 + self.n_patches_per_file
             mri_file, label_file = self.file_list[i]
             print mri_file
-            mri = nib.load(mri_file).get_data().squeeze()
-            lab = nib.load(label_file).get_data().squeeze()
-            conv_mri_patch.convert(mri, lab,
-                                   self.vx[id0:id1],
-                                   self.patch[id0:id1],
-                                   self.idx_patch[id0:id1],
-                                   self.tg[id0:id1])
+            self.vx[id0:id1], self.patch[id0:id1], self.idx_patch[id0:id1], self.tg[id0:id1] =\
+                conv_mri_patch.convert(mri_file, label_file, self.n_classes)
 
         # Permute data
         self.is_perm = config_ini.getboolean(cat_ini, 'perm')
@@ -99,7 +118,31 @@ class Dataset():
             self.vx = self.vx[perm]
             self.tg = self.tg[perm]
 
+    def createPickVoxel(self, config_ini):
+        """
+        Create the objects responsible for picking the voxels
+        """
+        where_vx = config_ini.get("pick_voxel", 'where')
+        how_vx = config_ini.get("pick_voxel", 'how')
+        if where_vx == "anywhere":
+            select_region = SelectWholeBrain()
+        elif where_vx == "plane":
+            select_region = SelectPlaneXZ(100)
+        else:
+            print "error in pick_voxel"
+            return
 
+        if how_vx == "all":
+            extract_voxel = ExtractVoxelAll(self.n_patch_per_voxel)
+        elif how_vx == "random":
+            extract_voxel = ExtractVoxelRandomly(self.n_patch_per_voxel, self.n_vx_per_file)
+        elif how_vx == "balanced":
+            extract_voxel = ExtractVoxelBalanced(self.n_patch_per_voxel, self.n_vx_per_file)
+        else:
+            print "error in pick_voxel"
+            return
+
+        return PickVoxel(select_region, extract_voxel)
 
     def write(self, file_name):
 
@@ -137,23 +180,25 @@ class Dataset():
 
 class ConverterMriPatch():
     """
-    Convert a mri file into patches
+    mri file --> dataset of patches converter
     """
-    def __init__(self, n_vx, n_repeat, patch_width, pick_vx, pick_patch, pick_tg):
-        self.n_vx = n_vx
-        self.n_repeat = n_repeat
+    def __init__(self, patch_width, pick_vx, pick_patch, pick_tg):
         self.patch_width = patch_width
 
         self.pick_vx = pick_vx
         self.pick_patch = pick_patch
         self.pick_tg = pick_tg
 
-    def convert(self, mri, lab, vx, patch, idx_patch, tg):
+    def convert(self, mri_file, label_file, n_classes):
+        mri = nib.load(mri_file).get_data().squeeze()
+        lab = nib.load(label_file).get_data().squeeze()
         mri, lab = crop_image(mri, lab)
 
-        self.pick_vx.pick_voxel(vx, mri, lab, self.n_vx, self.n_repeat)
-        self.pick_patch.pick_patch(idx_patch, patch, vx, mri, lab, self.patch_width)
-        self.pick_tg.pick_target(tg, vx, idx_patch, mri, lab)
+        vx = self.pick_vx.pick(lab)
+        patch, idx_patch = self.pick_patch.pick(vx, mri, lab, self.patch_width)
+        tg = self.pick_tg.pick(vx, idx_patch, n_classes, mri, lab)
+
+        return vx, patch, idx_patch, tg
 
 
 def list_miccai_files():
@@ -188,7 +233,9 @@ def check_limits(img):
 
 
 def crop_image(mri, lab):
-
+    """
+    Extract the brain from an mri image
+    """
     lim = check_limits(mri)
     lim0 = slice(lim[0, 0], lim[0, 1])
     lim1 = slice(lim[1, 0], lim[1, 1])
@@ -205,23 +252,18 @@ def convert_whole_mri():
     mri_file = '../data/miccai/mri/1000.nii'
     label_file = '../data/miccai/mri/1000.nii'
     print mri_file
-    mri = nib.load(mri_file).get_data().squeeze()
-    lab = nib.load(label_file).get_data().squeeze()
-    n_patches = len(lab.ravel().nonzeros())
+
     patch_width = 29
     n_classes = 139
 
-    pick_vx = PickVoxel("plane", "balanced")
+    select_region = SelectWholeBrain()
+    extract_voxel = ExtractVoxelAll(1)
+    pick_vx = PickVoxel(select_region, extract_voxel)
     pick_patch = PickPatchParallelXZ()
     pick_tg = PickTgProportion()
 
-    patch = np.zeros((n_patches, patch_width**2))
-    idx_patch = np.zeros((n_patches, patch_width**2), dtype=int)
-    vx = np.zeros((n_patches, 3), dtype=int)
-    tg = np.zeros((n_patches, n_classes))
-
-    conv_mri_patch = ConverterMriPatch(patch_width, 1, patch_width, pick_vx, pick_patch, pick_tg)
-    conv_mri_patch.convert()
+    conv_mri_patch = ConverterMriPatch(patch_width, pick_vx, pick_patch, pick_tg)
+    (patch, idx_patch, vx, tg) = conv_mri_patch.convert(mri_file, label_file, n_classes)
 
     return patch, idx_patch, vx, tg
 
