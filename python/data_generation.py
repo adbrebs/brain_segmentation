@@ -57,7 +57,7 @@ class Dataset():
         self.n_vx = config_ini.getint(cat_ini, 'n_vx')
         self.n_patch_per_voxel = config_ini.getint(cat_ini, 'n_patch_per_voxel')
 
-        self.pick_vx = PickVxRandomlyInPlaneXZ(self, y=100)
+        self.pick_vx = PickVxBalanced(self)
         self.pick_patch = PickPatchParallelXZ(self)
         self.pick_tg = PickTgProportion(self)
 

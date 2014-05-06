@@ -46,11 +46,11 @@ class PickVxBalanced(PickVoxel):
 
     def pick_voxel(self, id0, id1, mri, label):
         n_vx_per_class = self.ds.n_vx_per_file / self.ds.n_classes
-        vx_idx = np.zeros((self.ds.n_vx_per_file, 1))
+        vx_idx = np.zeros((self.ds.n_vx_per_file,), dtype=int)
 
         for k in xrange(self.ds.n_classes):
-            region = np.where(label.ravel() == k)
+            region = np.where(label.ravel() == k)[0]
             r = np.random.randint(len(region), size=n_vx_per_class)
-            vx_idx[k * n_vx_per_class:(k+1)*n_vx_per_class] = region.flat[r]
+            vx_idx[k * n_vx_per_class:(k+1)*n_vx_per_class] = region[r]
 
         self.duplicate_index(id0, id1, mri.shape, vx_idx)
