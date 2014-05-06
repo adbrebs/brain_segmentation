@@ -35,6 +35,7 @@ class Dataset():
         self.n_patches_per_file = None
 
         # Initialize the containers
+        self.is_perm = None
         self.patch = None
         self.idx_patch = None
         self.vx = None
@@ -57,7 +58,7 @@ class Dataset():
         self.n_vx = config_ini.getint(cat_ini, 'n_vx')
         self.n_patch_per_voxel = config_ini.getint(cat_ini, 'n_patch_per_voxel')
 
-        self.pick_vx = PickVxBalanced(self)
+        self.pick_vx = PickVoxel(self, "plane", "balanced")
         self.pick_patch = PickPatchParallelXZ(self)
         self.pick_tg = PickTgProportion(self)
 
