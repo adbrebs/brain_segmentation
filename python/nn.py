@@ -1,5 +1,8 @@
 __author__ = 'adeb'
 
+import theano
+from theano import tensor as T
+
 import layer
 
 
@@ -24,6 +27,11 @@ class Network():
             y = l.forward(y, batch_size)
 
         return y
+
+    def generate_testing_function(self, batch_size):
+        x = T.dmatrix('x')  # Minibatch input matrix
+        y_pred = self.forward(x, batch_size)  # Output of the network
+        return theano.function(x, y_pred)
 
 
 class Network1(Network):

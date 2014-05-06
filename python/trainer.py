@@ -23,7 +23,6 @@ class Trainer():
         self.n_valid_batches = ds.n_valid / self.batch_size
         self.n_test_batches = ds.n_test / self.batch_size
 
-        idx_batch = T.lscalar()
         x = T.dmatrix('x')  # Minibatch input matrix
         y_true = T.matrix('y_true')  # True output of a minibatch
 
@@ -41,6 +40,7 @@ class Trainer():
         for param_i, grad_i in zip(params, self.grads):
             updates.append((param_i, param_i - self.learning_rate * grad_i))
 
+        idx_batch = T.lscalar()
         id1 = idx_batch * self.batch_size
         id2 = (idx_batch + 1) * self.batch_size
         self.test_model = theano.function(
