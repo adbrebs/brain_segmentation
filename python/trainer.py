@@ -23,7 +23,7 @@ class Trainer():
         self.n_valid_batches = ds.n_valid / self.batch_size
         self.n_test_batches = ds.n_test / self.batch_size
 
-        x = T.dmatrix('x')  # Minibatch input matrix
+        x = T.matrix('x')  # Minibatch input matrix
         y_true = T.matrix('y_true')  # True output of a minibatch
 
         # Outpurt of the network
