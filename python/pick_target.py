@@ -4,31 +4,30 @@ import numpy as np
 
 
 class PickTarget():
-    def __init__(self, dataset):
-        self.ds = dataset
+    def __init__(self):
+        pass
 
-    def pick_target(self, id0, id1, mri, label):
+    def pick_target(self, tg, vx, idx_patch, mri, label):
         raise NotImplementedError
 
 
 class PickTgCentered(PickTarget):
-    def __init__(self, dataset):
-        PickTarget.__init__(self, dataset)
+    def __init__(self):
+        PickTarget.__init__(self)
 
-    def pick_target(self, id0, id1, mri, label):
-        temp = self.ds.vx[id0:id1]
-        self.ds.tg[np.arange(id0, id1), label[[temp[:, i] for i in xrange(3)]]] = 1
+    def pick_target(self, tg, vx, idx_patch, mri, label):
+        tg[np.arange(tg.shape[0]), label[[vx[:, i] for i in xrange(3)]]] = 1
 
 
 class PickTgProportion(PickTarget):
-    def __init__(self, dataset):
-        PickTarget.__init__(self, dataset)
+    def __init__(self):
+        PickTarget.__init__(self)
 
-    def pick_target(self, id0, id1, mri, label):
+    def pick_target(self, tg, vx, idx_patch, mri, label):
         lab_flat = label.ravel()
-        for i in xrange(id0, id1):
-            a = np.bincount(lab_flat[self.ds.idx_patch[i]])
+        for i in xrange(tg.shape[0]):
+            a = np.bincount(lab_flat[idx_patch[i]])
             b = np.nonzero(a)[0]
             c = a[b].astype(float, copy=False)
             c = c / sum(c)
-            self.ds.tg[i, b] = c
+            tg[i, b] = c

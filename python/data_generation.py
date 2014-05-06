@@ -58,9 +58,9 @@ class Dataset():
         self.n_vx = config_ini.getint(cat_ini, 'n_vx')
         self.n_patch_per_voxel = config_ini.getint(cat_ini, 'n_patch_per_voxel')
 
-        self.pick_vx = PickVoxel(self, "plane", "balanced")
-        self.pick_patch = PickPatchParallelXZ(self)
-        self.pick_tg = PickTgProportion(self)
+        self.pick_vx = PickVoxel("plane", "balanced")
+        self.pick_patch = PickPatchParallelXZ()
+        self.pick_tg = PickTgProportion()
 
         # Re-adjust
         divisor = self.n_files * self.n_classes
@@ -85,9 +85,10 @@ class Dataset():
             lab = nib.load(label_file).get_data().squeeze()
             mri, lab = crop_image(mri, lab)
 
-            self.pick_vx.pick_voxel(id0, id1, mri, lab)
-            self.pick_patch.pick_patch(id0, id1, mri, lab)
-            self.pick_tg.pick_target(id0, id1, mri, lab)
+            self.pick_vx.pick_voxel(self.vx[id0:id1], mri, lab, self.n_vx_per_file, self.n_patch_per_voxel)
+            self.pick_patch.pick_patch(self.idx_patch[id0:id1], self.patch[id0:id1], self.vx[id0:id1],
+                                       mri, lab, self.patch_width)
+            self.pick_tg.pick_target(self.tg[id0:id1], self.vx[id0:id1], self.idx_patch[id0:id1], mri, lab)
 
         # Permute data
         self.is_perm = config_ini.getboolean(cat_ini, 'perm')
