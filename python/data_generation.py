@@ -10,6 +10,7 @@ from datetime import datetime
 import h5py
 import nibabel as nib
 
+from multiprocess import parmap
 from pick_voxel import *
 from pick_patch import *
 from pick_target import *
@@ -101,13 +102,14 @@ class Dataset():
 
         # Extract patches
         print '... fill the dataset'
-        for i in xrange(self.n_files):
-            id0 = i * self.n_patches_per_file
-            id1 = id0 + self.n_patches_per_file
+        def extractPatchesFromFile(i):
             mri_file, label_file = self.file_list[i]
             print mri_file
-            self.vx[id0:id1], self.patch[id0:id1], self.idx_patch[id0:id1], self.tg[id0:id1] =\
-                conv_mri_patch.convert(mri_file, label_file, self.n_classes)
+            return conv_mri_patch.convert(mri_file, label_file, self.n_classes)
+        for i, res in enumerate(parmap(extractPatchesFromFile, range(self.n_files))):
+            id0 = i * self.n_patches_per_file
+            id1 = id0 + self.n_patches_per_file
+            self.vx[id0:id1], self.patch[id0:id1], self.idx_patch[id0:id1], self.tg[id0:id1] = res
 
         # Permute data
         self.is_perm = config_ini.getboolean(cat_ini, 'perm')

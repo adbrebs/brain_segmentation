@@ -13,7 +13,7 @@ import h5py
 import theano
 import theano.tensor as T
 
-dataset = 'mnist.pkl.gz'
+dataset = '../data/mnist.pkl.gz'
 
 data_dir, data_file = os.path.split(dataset)
 if data_dir == "" and not os.path.isfile(dataset):
@@ -43,17 +43,29 @@ test_y[range(test_x.shape[0]), test_y0] = 1
 
 
 f = h5py.File('../data/training_mnist.h5', 'w')
-f['/inputs'] = train_x.transpose()
-f['/targets'] = train_y.transpose()
+f['/patches'] = train_x
+f['/targets'] = train_y
+f["voxels"] = 0
+f["idx_patches"] = 0
+f.attrs["n_vx"] = train_x.shape[0]
+f.attrs['n_patch_per_voxel'] = 1
 f.attrs['n_classes'] = n_classes
 f.attrs['patch_width'] = 28
-f.attrs['n_samples'] = train_x.shape[0]
+f.attrs['n_patches'] = train_x.shape[0]
+f.attrs['is_perm'] = True
 f.close()
 
 
 f = h5py.File('../data/testing_mnist.h5', 'w')
-f['/inputs'] = test_x.transpose()
-f['/targets'] = test_y.transpose()
+f['/patches'] = test_x
+f['/targets'] = test_y
+f["voxels"] = 0
+f["idx_patches"] = 0
+f.attrs["n_vx"] = test_x.shape[0]
 f.attrs['n_patch_per_voxel'] = 1
+f.attrs['n_classes'] = n_classes
+f.attrs['patch_width'] = 28
+f.attrs['n_patches'] = test_x.shape[0]
+f.attrs['is_perm'] = True
 f.close()
 
