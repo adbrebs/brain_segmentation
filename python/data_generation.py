@@ -104,7 +104,6 @@ class Dataset():
         print '... fill the dataset'
         def extractPatchesFromFile(i):
             mri_file, label_file = self.file_list[i]
-            print mri_file
             return conv_mri_patch.convert(mri_file, label_file, self.n_classes)
         for i, res in enumerate(parmap(extractPatchesFromFile, range(self.n_files))):
             id0 = i * self.n_patches_per_file
@@ -192,6 +191,7 @@ class ConverterMriPatch():
         self.pick_tg = pick_tg
 
     def convert(self, mri_file, label_file, n_classes):
+        print mri_file
         mri = nib.load(mri_file).get_data().squeeze()
         lab = nib.load(label_file).get_data().squeeze()
         mri, lab = crop_image(mri, lab)

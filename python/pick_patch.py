@@ -42,6 +42,6 @@ class PickPatchParallelXZ(PickPatch):
             v1 = voxel[1]
             v2 = crop(2, voxel)
 
-            x, y, z = np.meshgrid(v0, v1, v2)
-            idx_patch[i] = np.ravel_multi_index((x, y, z), dims).flatten()
-            patch[i] = mri[x, y, z].flatten()
+            x, z = np.meshgrid(v0, v2)
+            idx_patch[i] = np.ravel_multi_index((x.ravel(), np.tile(v1, x.size), z.ravel()), dims)
+            patch[i] = mri[x,v1,z].ravel()
