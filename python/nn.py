@@ -1,5 +1,10 @@
 __author__ = 'adeb'
 
+import time
+import sys
+import h5py
+import numpy as np
+
 import theano
 from theano import tensor as T
 
@@ -31,7 +36,43 @@ class Network():
     def generate_testing_function(self, batch_size):
         x = T.dmatrix('x')  # Minibatch input matrix
         y_pred = self.forward(x, batch_size)  # Output of the network
-        return theano.function(x, y_pred)
+        return theano.function([x], y_pred)
+
+    def predict(self, patches):
+
+        n_patches = patches.shape[0]
+        pred = np.zeros((n_patches, self.n_out))
+        batch_size = min(200, n_patches)
+        pred_fun = self.generate_testing_function(batch_size)
+
+        n_batches = n_patches / batch_size
+        n_rest = n_patches - n_batches*batch_size
+
+        print "--------------------"
+        for b in xrange(n_batches):
+            sys.stdout.write("\rPrediction: %d%%" %((100*b)/n_batches))
+            sys.stdout.flush()
+            id0 = b*batch_size
+            id1 = id0 + batch_size
+            pred[id0:id1] = pred_fun(patches[id0:id1])
+
+        if n_rest > 0:
+            pred_fun_res = self.generate_testing_function(n_rest)
+            pred[n_batches*batch_size:] = pred_fun_res(patches[n_batches*batch_size:])
+
+        return pred
+
+    def save_parameters(self, file_name):
+        f = h5py.File("../networks/" + file_name, "w")
+        for i, l in enumerate(self.layers):
+            l.save_parameters(f, "layer" + str(i))
+        f.close()
+
+    def load_parameters(self, file_name):
+        f = h5py.File("../networks/" + file_name, "r")
+        for i, l in enumerate(self.layers):
+            l.load_parameters(f, "layer" + str(i))
+        f.close()
 
 
 class Network1(Network):
@@ -47,8 +88,8 @@ class Network1(Network):
 
 
 class Network2(Network):
-    def __init__(self, patch_width, n_in, n_out):
-        Network.__init__(self, n_in, n_out)
+    def __init__(self, patch_width, n_out):
+        Network.__init__(self, patch_width*patch_width, n_out)
 
         # Construct the first convolutional pooling layer:
         # filtering reduces the image size to (28-5+1,28-5+1)=(24,24)

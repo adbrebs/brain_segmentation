@@ -45,7 +45,7 @@ class SelectPlaneXZ(SelectRegion):
 
     def select(self, label):
         plan = np.zeros(label.shape)
-        plan[:, self.y, :] = label[:, self.y, :].squeeze()
+        plan[:, self.y, :] = label[:, self.y, :]
         return plan.ravel().nonzero()[0]
 
 

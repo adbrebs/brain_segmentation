@@ -21,9 +21,10 @@ class PickPatch():
         raise NotImplementedError
 
 
-class PickPatchParallelXZ(PickPatch):
-    def __init__(self):
+class PickPatchParallelOrthogonal(PickPatch):
+    def __init__(self, parallel_axis):
         PickPatch.__init__(self)
+        self.parallel_axis = parallel_axis
 
     def pick_virtual(self, patch, idx_patch, vx, mri, label, patch_width):
         dims = mri.shape
@@ -36,12 +37,14 @@ class PickPatchParallelXZ(PickPatch):
             return v
 
         for i in xrange(idx_patch.shape[0]):
-            voxel = vx[i]
+            vx_cur = vx[i]
+            v_parallel_axis = vx_cur[self.parallel_axis]
+            v_other_axis = []
+            l = range(3)
+            del l[self.parallel_axis]
+            for ax in l:
+                v_other_axis.append(crop(ax, vx_cur))
 
-            v0 = crop(0, voxel)
-            v1 = voxel[1]
-            v2 = crop(2, voxel)
-
-            x, z = np.meshgrid(v0, v2)
-            idx_patch[i] = np.ravel_multi_index((x.ravel(), np.tile(v1, x.size), z.ravel()), dims)
-            patch[i] = mri[x,v1,z].ravel()
+            x, y = np.meshgrid(v_other_axis[0], v_other_axis[1])
+            idx_patch[i] = np.ravel_multi_index((x.ravel(), np.tile(v_parallel_axis, x.size), y.ravel()), dims)
+            patch[i] = mri[x, v_parallel_axis, y].ravel()

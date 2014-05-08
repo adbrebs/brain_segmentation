@@ -2,8 +2,8 @@ __author__ = 'adeb'
 
 import sys
 import time
-
-import numpy
+import math
+import numpy as np
 
 import theano
 import theano.tensor as T
@@ -30,7 +30,7 @@ class Trainer():
         y_pred = net.forward(x, self.batch_size)
 
         # Cost the trainer is going to minimize
-        cost = self.mse(y_pred, y_true)
+        cost = self.mse_symb(y_pred, y_true)
 
         # Compute gradients
         params = net.params
@@ -45,12 +45,12 @@ class Trainer():
         id2 = (idx_batch + 1) * self.batch_size
         self.test_model = theano.function(
             inputs=[idx_batch],
-            outputs=self.errors(y_pred, y_true),
+            outputs=self.error_rate_symb(y_pred, y_true),
             givens={x: ds.test_x[id1:id2], y_true: ds.test_y[id1:id2]})
 
         self.validate_model = theano.function(
             inputs=[idx_batch],
-            outputs=self.errors(y_pred, y_true),
+            outputs=self.error_rate_symb(y_pred, y_true),
             givens={x: ds.valid_x[id1:id2], y_true: ds.valid_y[id1:id2]})
 
         self.train_model = theano.function(
@@ -59,7 +59,8 @@ class Trainer():
             updates=updates,
             givens={x: ds.train_x[id1:id2], y_true: ds.train_y[id1:id2]})
 
-    def mse(self, y_pred, y_true):
+    @staticmethod
+    def mse_symb(y_pred, y_true):
         """Return the mean square error
         Args:
             y_pred (theano.tensor.TensorType): output returned by a network
@@ -67,7 +68,8 @@ class Trainer():
         """
         return T.mean(T.sum((y_pred - y_true) * (y_pred - y_true), axis=1))
 
-    def errors(self, y_pred, y_true):
+    @staticmethod
+    def error_rate_symb(y_pred, y_true):
         """Return the error rate
         Args:
             y_pred (theano.tensor.TensorType): output returned by a network
@@ -75,7 +77,17 @@ class Trainer():
         """
         return T.mean(T.neq(T.argmax(y_pred, axis=1), T.argmax(y_true, axis=1)))
 
-    def negative_log_likelihood(self, y_pred, y_true):
+    @staticmethod
+    def error_rate(y_pred, y_true):
+        """Return the error rate
+        Args:
+            y_pred (theano.tensor.TensorType): output returned by a network
+            y_pred (theano.tensor.TensorType): output returned by a network
+        """
+        return np.mean(np.argmax(y_pred, axis=1) != np.argmax(y_true, axis=1))
+
+    @staticmethod
+    def negative_log_likelihood_symb(y_pred, y_true):
         """Return the negative log-likelihood
         Args:
             y_pred (theano.tensor.TensorType): output returned by a network
@@ -83,13 +95,31 @@ class Trainer():
         """
         return -T.mean(T.sum(T.log(y_pred) * y_true, axis=1))
 
+    @staticmethod
+    def negative_log_likelihood(y_pred, y_true):
+        """Return the negative log-likelihood
+        Args:
+            y_pred (theano.tensor.TensorType): output returned by a network
+            y_pred (theano.tensor.TensorType): output returned by a network
+        """
+        return -np.mean(np.sum(math.log(y_pred) * y_true, axis=1))
+
+    @staticmethod
+    def negative_log_likelihood(y_pred, y_true):
+        """Return the negative log-likelihood
+        Args:
+            y_pred (theano.tensor.TensorType): output returned by a network
+            y_pred (theano.tensor.TensorType): output returned by a network
+        """
+        return np.mean(np.sum(math.log(y_pred) * y_true, axis=1))
+
     def train(self):
         print '... train the network'
 
         start_time = time.clock()
 
         # early-stopping parameters
-        patience = 10000  # look as this many examples regardless
+        patience = 5000  # look as this many minibatches regardless
         patience_increase = 1000  # wait this much longer when a new best is found
         improvement_threshold = 0.995  # a relative improvement of this much is considered significant
         validation_frequency = min(self.n_train_batches, patience / 2)
@@ -98,7 +128,7 @@ class Trainer():
                                       # on the validation set; in this case we
                                       # check every epoch
 
-        best_validation_loss = numpy.inf
+        best_validation_loss = np.inf
         best_iter = 0
         test_score = 0.
 
@@ -126,7 +156,7 @@ class Trainer():
 
                 # compute validation error
                 validation_losses = [self.validate_model(i) for i in xrange(self.n_valid_batches)]
-                this_validation_loss = numpy.mean(validation_losses)
+                this_validation_loss = np.mean(validation_losses)
                 print('epoch %i, minibatch %i/%i, validation error %f' %
                       (epoch, minibatch_index + 1, self.n_train_batches, this_validation_loss))
 
@@ -144,7 +174,7 @@ class Trainer():
 
                 # test it on the test set
                 test_losses = [self.test_model(i) for i in xrange(self.n_test_batches)]
-                test_score = numpy.mean(test_losses)
+                test_score = np.mean(test_losses)
                 print('     epoch %i, minibatch %i/%i, test error of best model %f' %
                       (epoch, minibatch_index + 1, self.n_train_batches, test_score))
 

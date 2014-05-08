@@ -93,9 +93,9 @@ class Dataset():
         self.tg = np.zeros((self.n_patches, self.n_classes))
 
         # Create the objects responsible for picking the voxels
-        self.pick_vx = self.createPickVoxel(config_ini)
-        self.pick_patch = PickPatchParallelXZ()
-        self.pick_tg = PickTgProportion()
+        self.pick_vx = self.create_pick_voxel(config_ini)
+        self.pick_patch = PickPatchParallelOrthogonal(1)
+        self.pick_tg = PickTgCentered()
 
         # Create the mri-patch converter
         conv_mri_patch = ConverterMriPatch(self.patch_width, self.pick_vx, self.pick_patch, self.pick_tg)
@@ -108,7 +108,7 @@ class Dataset():
         for i, res in enumerate(parmap(extractPatchesFromFile, range(self.n_files))):
             id0 = i * self.n_patches_per_file
             id1 = id0 + self.n_patches_per_file
-            self.vx[id0:id1], self.patch[id0:id1], self.idx_patch[id0:id1], self.tg[id0:id1] = res
+            self.vx[id0:id1], self.patch[id0:id1], self.idx_patch[id0:id1], self.tg[id0:id1] = res[0:4]
 
         # Permute data
         self.is_perm = config_ini.getboolean(cat_ini, 'perm')
@@ -119,7 +119,7 @@ class Dataset():
             self.vx = self.vx[perm]
             self.tg = self.tg[perm]
 
-    def createPickVoxel(self, config_ini):
+    def create_pick_voxel(self, config_ini):
         """
         Create the objects responsible for picking the voxels
         """
@@ -191,7 +191,7 @@ class ConverterMriPatch():
         self.pick_tg = pick_tg
 
     def convert(self, mri_file, label_file, n_classes):
-        print mri_file
+        print "    ... converting " + mri_file
         mri = nib.load(mri_file).get_data().squeeze()
         lab = nib.load(label_file).get_data().squeeze()
         mri, lab = crop_image(mri, lab)
@@ -200,7 +200,7 @@ class ConverterMriPatch():
         patch, idx_patch = self.pick_patch.pick(vx, mri, lab, self.patch_width)
         tg = self.pick_tg.pick(vx, idx_patch, n_classes, mri, lab)
 
-        return vx, patch, idx_patch, tg
+        return vx, patch, idx_patch, tg, mri, lab
 
 
 def list_miccai_files():
@@ -249,26 +249,14 @@ def crop_image(mri, lab):
     return mri, lab
 
 
-def convert_whole_mri():
 
-    mri_file = '../data/miccai/mri/1000.nii'
-    label_file = '../data/miccai/mri/1000.nii'
-    print mri_file
-
-    patch_width = 29
-    n_classes = 139
-
-    select_region = SelectWholeBrain()
-    extract_voxel = ExtractVoxelAll(1)
-    pick_vx = PickVoxel(select_region, extract_voxel)
-    pick_patch = PickPatchParallelXZ()
-    pick_tg = PickTgProportion()
-
-    conv_mri_patch = ConverterMriPatch(patch_width, pick_vx, pick_patch, pick_tg)
-    (patch, idx_patch, vx, tg) = conv_mri_patch.convert(mri_file, label_file, n_classes)
-
-    return patch, idx_patch, vx, tg
-
+def create_img_from_pred(vx, pred, shape):
+    pred_img = np.zeros(shape, dtype=np.uint8)
+    if len(shape) == 2:
+        pred_img[vx[:, 0], vx[:, 1]] = pred
+    elif len(shape) == 3:
+        pred_img[vx[:, 0], vx[:, 1], vx[:, 2]] = pred
+    return pred_img
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:

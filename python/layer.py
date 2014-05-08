@@ -2,6 +2,7 @@ __author__ = 'adeb'
 
 
 import numpy
+import h5py
 
 import theano
 import theano.tensor as T
@@ -11,6 +12,8 @@ from theano.tensor.nnet import conv
 
 class Layer():
     def __init__(self):
+        self.w = None
+        self.b = None
         pass
 
     def forward(self, x, batch_size):
@@ -20,7 +23,15 @@ class Layer():
         Returns:
             (theano.tensor.TensorType): output of the layer
         """
-        pass
+        raise NotImplementedError
+
+    def save_parameters(self, h5file, name):
+        h5file.create_dataset(name + "/w", data=self.w.get_value(), dtype='f')
+        h5file.create_dataset(name + "/b", data=self.b.get_value(), dtype='f')
+
+    def load_parameters(self, h5file, name):
+        self.w.set_value(h5file[name + "/w"].value)
+        self.b.set_value(h5file[name + "/b"].value)
 
 
 class LayerFullyConnected(Layer):

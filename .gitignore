@@ -67,3 +67,6 @@ docs/_build/
 *.txt
 *.pdf
 *.swp
+*.swo
+*.net
+*.png
