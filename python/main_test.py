@@ -4,8 +4,7 @@ import sys
 import ConfigParser
 
 from matplotlib import pyplot as plt
-import numpy as np
-import Image
+from scipy.ndimage.interpolation import rotate
 import theano
 import theano.sandbox.cuda
 
@@ -39,12 +38,22 @@ if __name__ == '__main__':
     mri_file = '../data/miccai/mri/1000.nii'
     label_file = '../data/miccai/label/1000.nii'
     select_region = SelectPlaneXZ(100)
-    extract_voxel = ExtractVoxelAll(1)
+    extract_voxel = ExtractVoxelRandomly(1,500)
     pick_vx = PickVoxel(select_region, extract_voxel)
     pick_patch = PickPatchParallelOrthogonal(1)
     pick_tg = PickTgCentered()
     conv_mri_patch = ConverterMriPatch(patch_width, pick_vx, pick_patch, pick_tg)
     vx, patch, idx_patch, tg, mri, lab = conv_mri_patch.convert(mri_file, label_file, n_classes)
+
+    slice1 = mri[:,:,100]
+    mri_rot = rotate(mri, 20, axes=(0,1))
+    slice2 = mri_rot[:,:,100]
+
+    # plt.imshow(slice1)
+    # plt.show()
+    #
+    # plt.imshow(slice2)
+    # plt.show()
 
     ### Predict the patches
     pred = net.predict(patch)

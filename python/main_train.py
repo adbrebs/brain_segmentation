@@ -9,7 +9,6 @@ import theano.sandbox.cuda
 from database import DataBase
 import nn
 import trainer
-from data_generation import convert_whole_mri
 
 
 def load_config():
@@ -34,11 +33,11 @@ if __name__ == '__main__':
     # net = nn.Network1(ds.patch_width * ds.patch_width, ds.n_classes)
 
     # CNN network
-    net = nn.Network2(ds.patch_width, ds.patch_width * ds.patch_width, ds.n_classes)
+    net = nn.Network3(ds.patch_width, ds.n_classes)
 
     # ### Train the network
     t = trainer.Trainer(training_cf, net, ds)
     t.train()
 
-    ### Train the network
+    ### Save the network
     net.save_parameters("net2.net")

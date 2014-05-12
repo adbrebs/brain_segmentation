@@ -64,7 +64,7 @@ class Dataset():
         """
         Generate a new dataset from a config file
         """
-        print '... initialize the dataset'
+        print '... generate the dataset'
         cat_ini = 'generate_data'
 
         # Collect the file names
@@ -249,7 +249,6 @@ def crop_image(mri, lab):
     return mri, lab
 
 
-
 def create_img_from_pred(vx, pred, shape):
     pred_img = np.zeros(shape, dtype=np.uint8)
     if len(shape) == 2:
@@ -257,19 +256,3 @@ def create_img_from_pred(vx, pred, shape):
     elif len(shape) == 3:
         pred_img[vx[:, 0], vx[:, 1], vx[:, 2]] = pred
     return pred_img
-
-if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        ini_file = "creation_training_data_1.ini"
-    else:
-        ini_file = str(sys.argv[1])
-
-    # Load config
-    config_ini = ConfigParser.ConfigParser()
-    config_ini.read(ini_file)
-    file_name = config_ini.get('generate_data', 'file_name')
-
-    # Generate the dataset
-    dc_training = Dataset()
-    dc_training.generate(config_ini)
-    dc_training.write(file_name)

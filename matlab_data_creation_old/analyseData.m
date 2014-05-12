@@ -5,15 +5,15 @@ samples = h5read(fileName, '/inputs');
 % Display one patch
 %slice = reshape(samples(4,:), patchWidth, patchWidth);
 
-mri = './miccai/mri/1019.nii';
-mask = './miccai/label/1019.nii';
+mri = '../data/miccai/mri/1019.nii';
+mask = '../data/miccai/label/1019.nii';
 
 [mri, label] = openNII({mri,mask}, false);
 [mri, label] = cropImg(mri, label);
-option.setvalue.idx = find(label.img);
-option.setvalue.val = label.img(option.setvalue.idx);
-option.useinterp = 1;
-view_nii(mri, option)
+% option.setvalue.idx = find(label.img);
+% option.setvalue.val = label.img(option.setvalue.idx);
+% option.useinterp = 1;
+view_nii(mri)
 
 
 figure

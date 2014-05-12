@@ -132,18 +132,20 @@ class Trainer():
         best_iter = 0
         test_score = 0.
 
+        freq_display_batch = self.n_train_batches / 4
         epoch = 0
         early_stopping = False
         id_mini_batch = 0
 
         while (epoch < self.n_epochs) and (not early_stopping):
             epoch += 1
+            print("epoch {}".format(epoch))
             for minibatch_index in xrange(self.n_train_batches):
 
                 id_mini_batch += 1
 
-                if id_mini_batch % 100 == 0:
-                    print('epoch %i, minibatch %i/%i' % (epoch, minibatch_index + 1, self.n_train_batches))
+                if id_mini_batch % freq_display_batch == 0:
+                    print("    minibatch {}/{}".format(minibatch_index + 1, self.n_train_batches))
 
                 self.train_model(minibatch_index)
 
@@ -157,8 +159,8 @@ class Trainer():
                 # compute validation error
                 validation_losses = [self.validate_model(i) for i in xrange(self.n_valid_batches)]
                 this_validation_loss = np.mean(validation_losses)
-                print('epoch %i, minibatch %i/%i, validation error %f' %
-                      (epoch, minibatch_index + 1, self.n_train_batches, this_validation_loss))
+                print("    minibatch {}/{}, validation error: {}".format(
+                    minibatch_index + 1, self.n_train_batches, this_validation_loss))
 
                 # if we got the best validation score until now
                 if this_validation_loss >= best_validation_loss:
@@ -175,8 +177,8 @@ class Trainer():
                 # test it on the test set
                 test_losses = [self.test_model(i) for i in xrange(self.n_test_batches)]
                 test_score = np.mean(test_losses)
-                print('     epoch %i, minibatch %i/%i, test error of best model %f' %
-                      (epoch, minibatch_index + 1, self.n_train_batches, test_score))
+                print("    minibatch {}/{}, test error of the best model so far: {}".format(
+                    minibatch_index + 1, self.n_train_batches, test_score))
 
         end_time = time.clock()
         print('Training complete.')
