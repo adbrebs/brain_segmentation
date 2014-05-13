@@ -32,4 +32,4 @@ class NeuronRELU(NeuronType):
         NeuronType.__init__(self)
 
     def activation_function(self, x):
-        return T.maximum(0, x)
+        return T.switch(x > 0., x, 0)

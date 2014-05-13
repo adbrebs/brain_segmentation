@@ -1,10 +1,8 @@
 __author__ = 'adeb'
 
 import os
-import sys
 import glob
 import math
-import ConfigParser
 from datetime import datetime
 
 import h5py
@@ -49,18 +47,17 @@ class Dataset():
         self.pick_patch = None
         self.pick_tg = None
 
-        self.n_vx_per_file = None
         self.n_patches = None
-        self.n_patches_per_file = None
+
+        self.is_perm = None
 
         # Initialize the containers
-        self.is_perm = None
         self.patch = None
         self.idx_patch = None
         self.vx = None
         self.tg = None
 
-    def generate(self, config_ini):
+    def generate_from_config(self, config_ini):
         """
         Generate a new dataset from a config file
         """
@@ -77,41 +74,54 @@ class Dataset():
 
         self.n_files = len(self.file_list)
         self.patch_width = config_ini.getint(cat_ini, 'patch_width')
-        self.n_vx = config_ini.getint(cat_ini, 'n_vx')
         self.n_patch_per_voxel = config_ini.getint(cat_ini, 'n_patch_per_voxel')
-
-        # Re-adjust so there is no rounding problem with the number of files and classes
-        divisor = self.n_files * self.n_classes
-        self.n_vx = int(math.ceil(float(self.n_vx) / divisor) * divisor)
-        self.n_vx_per_file = self.n_vx / self.n_files
-        self.n_patches = self.n_vx * self.n_patch_per_voxel
-        self.n_patches_per_file = self.n_patches / self.n_files
-
-        self.patch = np.zeros((self.n_patches, self.patch_width**2))
-        self.idx_patch = np.zeros((self.n_patches, self.patch_width**2), dtype=int)
-        self.vx = np.zeros((self.n_patches, 3), dtype=int)
-        self.tg = np.zeros((self.n_patches, self.n_classes))
 
         # Create the objects responsible for picking the voxels
         self.pick_vx = self.create_pick_voxel(config_ini)
         self.pick_patch = PickPatchParallelOrthogonal(1)
         self.pick_tg = PickTgCentered()
 
+        self.is_perm = config_ini.getboolean(cat_ini, 'perm')
+
+        self.__generate_common()
+
+    def __generate_common(self):
+        """
+        This private function is used in all the generation methods
+        """
         # Create the mri-patch converter
         conv_mri_patch = ConverterMriPatch(self.patch_width, self.pick_vx, self.pick_patch, self.pick_tg)
 
         # Extract patches
-        print '... fill the dataset'
+        print '... populate the dataset'
+
         def extractPatchesFromFile(i):
             mri_file, label_file = self.file_list[i]
             return conv_mri_patch.convert(mri_file, label_file, self.n_classes)
-        for i, res in enumerate(parmap(extractPatchesFromFile, range(self.n_files))):
-            id0 = i * self.n_patches_per_file
-            id1 = id0 + self.n_patches_per_file
-            self.vx[id0:id1], self.patch[id0:id1], self.idx_patch[id0:id1], self.tg[id0:id1] = res[0:4]
+
+        # Generation of the data in parallel on the CPU cores
+        res_all = parmap(extractPatchesFromFile, range(self.n_files))
+
+        # Count the number of patches
+        self.n_patches = 0
+        for i, res in enumerate(res_all):
+            self.n_patches += res[0].shape[0]
+
+        # Initialize the containers
+        self.patch = np.zeros((self.n_patches, self.patch_width**2), dtype=np.float32)
+        self.idx_patch = np.zeros((self.n_patches, self.patch_width**2), dtype=int)
+        self.vx = np.zeros((self.n_patches, 3), dtype=int)
+        self.tg = np.zeros((self.n_patches, self.n_classes), dtype=np.float32)
+
+        # Populate the containers
+        idx_writing_1 = 0
+        for res in res_all:
+            idx_writing_2 = idx_writing_1 + res[0].shape[0]
+            s = slice(idx_writing_1, idx_writing_2)
+            self.vx[s], self.patch[s], self.idx_patch[s], self.tg[s] = res[0:4]
+            idx_writing_1 = idx_writing_2
 
         # Permute data
-        self.is_perm = config_ini.getboolean(cat_ini, 'perm')
         if self.is_perm:
             perm = np.random.permutation(self.n_patches)
             self.patch = self.patch[perm]
@@ -119,10 +129,14 @@ class Dataset():
             self.vx = self.vx[perm]
             self.tg = self.tg[perm]
 
+        self.n_patches = self.patch.shape[0]
+
+
     def create_pick_voxel(self, config_ini):
         """
         Create the objects responsible for picking the voxels
         """
+
         where_vx = config_ini.get("pick_voxel", 'where')
         how_vx = config_ini.get("pick_voxel", 'how')
         if where_vx == "anywhere":
@@ -135,18 +149,51 @@ class Dataset():
 
         if how_vx == "all":
             extract_voxel = ExtractVoxelAll(self.n_patch_per_voxel)
-        elif how_vx == "random":
-            extract_voxel = ExtractVoxelRandomly(self.n_patch_per_voxel, self.n_vx_per_file)
-        elif how_vx == "balanced":
-            extract_voxel = ExtractVoxelBalanced(self.n_patch_per_voxel, self.n_vx_per_file)
         else:
-            print "error in pick_voxel"
-            return
+            self.n_vx = config_ini.getint('pick_voxel', 'n_vx')
+
+            # Re-adjust so there is no rounding problem with the number of files and classes
+            divisor = self.n_files * self.n_classes
+            self.n_vx = int(math.ceil(float(self.n_vx) / divisor) * divisor)
+            n_vx_per_file = self.n_vx / self.n_files
+
+            if how_vx == "random":
+                extract_voxel = ExtractVoxelRandomly(self.n_patch_per_voxel, n_vx_per_file)
+            elif how_vx == "balanced":
+                extract_voxel = ExtractVoxelBalanced(self.n_patch_per_voxel, n_vx_per_file)
+            else:
+                print "error in pick_voxel"
+                return
 
         return PickVoxel(select_region, extract_voxel)
 
-    def write(self, file_name):
+    def populate_from(self, file_list, n_classes, patch_width, is_perm, n_patch_per_voxel, pick_vx, pick_patch, pick_tg):
+        """
+        Generate a new dataset from the arguments
+        """
+        print '... generate the dataset'
+        cat_ini = 'generate_data'
 
+        self.file_list = file_list
+        self.n_classes = n_classes
+
+        self.n_files = len(self.file_list)
+        self.patch_width = patch_width
+        self.n_patch_per_voxel = n_patch_per_voxel
+
+        # Create the objects responsible for picking the voxels
+        self.pick_vx = pick_vx
+        self.pick_patch = pick_patch
+        self.pick_tg = pick_tg
+
+        self.is_perm = is_perm
+
+        self.__generate_common()
+
+    def write(self, file_name):
+        """
+        write the dataset in a hdf5 file
+        """
         f = h5py.File("../data/" + file_name, "w")
         f.create_dataset("patches", data=self.patch, dtype='f')
         f.create_dataset("targets", data=self.tg, dtype='f')
@@ -163,7 +210,9 @@ class Dataset():
         f.close()
 
     def read(self, file_name):
-
+        """
+        load the dataset from a hdf5 file
+        """
         f = h5py.File("../data/" + file_name, "r")
         self.patch = f["patches"].value
         self.tg = f["targets"].value
@@ -181,7 +230,7 @@ class Dataset():
 
 class ConverterMriPatch():
     """
-    mri file --> dataset of patches converter
+    Class that manages the convertion of an mri file into a dataset of patches
     """
     def __init__(self, patch_width, pick_vx, pick_patch, pick_tg):
         self.patch_width = patch_width
@@ -212,7 +261,25 @@ def list_miccai_files():
             for i in xrange(n_files)]
 
 
+def crop_image(mri, lab):
+    """
+    Extract the brain from an mri image
+    """
+    lim = check_limits(mri)
+    lim0 = slice(lim[0, 0], lim[0, 1])
+    lim1 = slice(lim[1, 0], lim[1, 1])
+    lim2 = slice(lim[2, 0], lim[2, 1])
+
+    mri = mri[lim0, lim1, lim2]
+    lab = lab[lim0, lim1, lim2]
+
+    return mri, lab
+
+
 def check_limits(img):
+    """
+    Find the limits of the brain in an image
+    """
     def check_limit_one_side(fun, iterations):
         for i in iterations:
             if np.any(fun(i)):
@@ -234,22 +301,10 @@ def check_limits(img):
     return lim
 
 
-def crop_image(mri, lab):
-    """
-    Extract the brain from an mri image
-    """
-    lim = check_limits(mri)
-    lim0 = slice(lim[0, 0], lim[0, 1])
-    lim1 = slice(lim[1, 0], lim[1, 1])
-    lim2 = slice(lim[2, 0], lim[2, 1])
-
-    mri = mri[lim0, lim1, lim2]
-    lab = lab[lim0, lim1, lim2]
-
-    return mri, lab
-
-
 def create_img_from_pred(vx, pred, shape):
+    """
+    Create a labelled image array from voxels and their predictions
+    """
     pred_img = np.zeros(shape, dtype=np.uint8)
     if len(shape) == 2:
         pred_img[vx[:, 0], vx[:, 1]] = pred

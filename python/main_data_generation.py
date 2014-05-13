@@ -3,11 +3,11 @@ __author__ = 'adeb'
 import sys
 import ConfigParser
 
-from data_generation import Dataset
+from dataset import Dataset
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
-        ini_file = "creation_training_data_1.ini"
+        ini_file = "creation_testing_data_1.ini"
     else:
         ini_file = str(sys.argv[1])
 
@@ -18,5 +18,5 @@ if __name__ == '__main__':
 
     # Generate the dataset
     dc_training = Dataset()
-    dc_training.generate(config_ini)
+    dc_training.generate_from_config(config_ini)
     dc_training.write(file_name)

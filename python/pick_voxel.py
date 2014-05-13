@@ -44,7 +44,7 @@ class SelectPlaneXZ(SelectRegion):
         self.y = y
 
     def select(self, label):
-        plan = np.zeros(label.shape)
+        plan = np.zeros(label.shape, dtype=np.float32)
         plan[:, self.y, :] = label[:, self.y, :]
         return plan.ravel().nonzero()[0]
 

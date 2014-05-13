@@ -58,7 +58,7 @@ class LayerFullyConnected(Layer):
             high=numpy.sqrt(6. / (self.n_in + self.n_out)),
             size=(self.n_in, self.n_out)), dtype=theano.config.floatX)
 
-        b_values = numpy.zeros((self.n_out,), dtype=theano.config.floatX)
+        b_values = 0.1 + numpy.zeros((self.n_out,), dtype=theano.config.floatX)
 
         w = theano.shared(w_values, name='w', borrow=True)
         b = theano.shared(b_values, name='b', borrow=True)
@@ -166,7 +166,7 @@ class LayerConvPool2D(Layer):
             dtype=theano.config.floatX), borrow=True)
 
         # the bias is a 1D tensor -- one bias per output feature map
-        b_values = numpy.zeros((filter_shape[0],), dtype=theano.config.floatX)
+        b_values = 0.1 + numpy.zeros((filter_shape[0],), dtype=theano.config.floatX)
         self.b = theano.shared(value=b_values, borrow=True)
 
         self.params = [self.w, self.b]

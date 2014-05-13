@@ -11,7 +11,7 @@ class PickTarget():
         pass
 
     def pick(self, vx, idx_patch, n_classes, mri, label):
-        tg = np.zeros((vx.shape[0], n_classes))
+        tg = np.zeros((vx.shape[0], n_classes), dtype=np.float32)
         self.pick_virtual(tg, vx, idx_patch, n_classes, mri, label)
         return tg
 

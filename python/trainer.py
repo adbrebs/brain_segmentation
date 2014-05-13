@@ -7,17 +7,22 @@ import numpy as np
 
 import theano
 import theano.tensor as T
-
+import warnings
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore",category=DeprecationWarning)
+    from sklearn.preprocessing import StandardScaler as stdScaler
 
 class Trainer():
     def __init__(self, config, net, ds):
         print '... configure training'
 
+        # Scale the data
+        net.create_scaling_from_raw_database(ds)
+        net.scale_database(ds)
+
         self.batch_size = config.getint('training', 'batch_size')
         self.learning_rate = config.getfloat('training', 'learning_rate')
         self.n_epochs = config.getint('training', 'n_epochs')
-
-        self.ds = ds
 
         self.n_train_batches = ds.n_train / self.batch_size
         self.n_valid_batches = ds.n_valid / self.batch_size
@@ -121,7 +126,7 @@ class Trainer():
         # early-stopping parameters
         patience = 5000  # look as this many minibatches regardless
         patience_increase = 1000  # wait this much longer when a new best is found
-        improvement_threshold = 0.995  # a relative improvement of this much is considered significant
+        improvement_threshold = 0.99  # a relative improvement of this much is considered significant
         validation_frequency = min(self.n_train_batches, patience / 2)
                                       # go through this many
                                       # minibatche before checking the network
@@ -136,6 +141,8 @@ class Trainer():
         epoch = 0
         early_stopping = False
         id_mini_batch = 0
+
+        starting_epoch_time = time.clock()
 
         while (epoch < self.n_epochs) and (not early_stopping):
             epoch += 1
@@ -179,6 +186,9 @@ class Trainer():
                 test_score = np.mean(test_losses)
                 print("    minibatch {}/{}, test error of the best model so far: {}".format(
                     minibatch_index + 1, self.n_train_batches, test_score))
+
+            print("    epoch {} finished after {} seconds".format(epoch, time.clock() - starting_epoch_time))
+            starting_epoch_time = time.clock()
 
         end_time = time.clock()
         print('Training complete.')

@@ -1,16 +1,18 @@
 __author__ = 'adeb'
 
-import numpy
+import numpy as np
 
 import theano
 
-from data_generation import Dataset
+from dataset import Dataset
+
 
 class DataBase():
     def __init__(self, config):
 
         training_data_file = config.get('dataset', 'training_data')
         testing_data_file = config.get('dataset', 'testing_data')
+        standardization = config.getboolean('dataset', 'standardization')
 
         print '... loading data ' + training_data_file + ' and ' + testing_data_file
 
@@ -37,7 +39,7 @@ class DataBase():
 
         # Store the data in shared variables
         def share_data(data, borrow=True):
-            shared_data = theano.shared(numpy.asarray(data, dtype=theano.config.floatX), borrow=borrow)
+            shared_data = theano.shared(np.asarray(data, dtype=theano.config.floatX), borrow=borrow)
             return shared_data
         self.test_x = share_data(test_x)
         self.test_y = share_data(test_y)
@@ -49,3 +51,20 @@ class DataBase():
         self.n_train = self.train_x.get_value(borrow=True).shape[0]
         self.n_valid = self.valid_x.get_value(borrow=True).shape[0]
         self.n_test = self.test_x.get_value(borrow=True).shape[0]
+
+
+def analyse_data(inputs, targets):
+    # Number of classes
+    targets_scalar = np.argmax(targets, axis=1)
+    classes = np.unique(targets_scalar)
+    n_classes = len(classes)
+    n_data = targets.shape[0]
+    print("There are {} datapoints in the dataset".format(n_data))
+    print("There are {} regions to segment in the dataset".format(n_classes))
+
+    a = np.bincount(targets_scalar)
+    b = np.nonzero(a)[0]
+    c = a[b].astype(float, copy=False)
+    c /= sum(c)
+
+    return b, c

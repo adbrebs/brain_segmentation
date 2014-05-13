@@ -13,7 +13,7 @@ class PickPatch():
     def pick(self, vx, mri, label, patch_width):
         n_vx = vx.shape[0]
         idx_patch = np.zeros((n_vx, patch_width**2), dtype=int)
-        patch = np.zeros((n_vx, patch_width**2))
+        patch = np.zeros((n_vx, patch_width**2), dtype=np.float32)
         self.pick_virtual(patch, idx_patch, vx, mri, label, patch_width)
         return patch, idx_patch
 

@@ -1,6 +1,5 @@
 __author__ = 'adeb'
 
-import time
 import sys
 import h5py
 import numpy as np
@@ -13,6 +12,19 @@ import neurons
 
 
 class Network():
+    """
+    Create, store, save, load a dataset.
+
+    Attributes:
+        n_in: List of pairs (mri_file, label_file)
+        n_out: Number of output classes in the dataset
+
+        layers(list): list of the layers composing the network
+        params(list): list of arrays of parameters of all the layers
+
+        scalar_mean: mean for standardizing the data
+        scalar_std: std for standardizing the data
+    """
     def __init__(self, n_in, n_out):
         print '... initialize the model'
         self.n_in = n_in
@@ -20,6 +32,9 @@ class Network():
 
         self.layers = []
         self.params = []
+
+        self.scalar_mean = None
+        self.scalar_std = None
 
     def forward(self, x, batch_size):
         """Return the output of the network
@@ -35,14 +50,25 @@ class Network():
         return y
 
     def generate_testing_function(self, batch_size):
-        x = T.dmatrix('x')  # Minibatch input matrix
+        """Generate a C-compiled function that can be used to compute the output of the network from an input batch
+        Args:
+            batch_size (int): the input of the returned function will be a batch of batch_size elements
+        Returns:
+            (function): function to returns the output of the network for a given input batch
+        """
+        x = T.matrix('x')  # Minibatch input matrix
         y_pred = self.forward(x, batch_size)  # Output of the network
         return theano.function([x], y_pred)
 
     def predict(self, patches):
-
+        """Return the outputs of the patches
+        Args:
+            patches (2D array): dataset in which rows are datapoints
+        Returns:
+            pred (2D array): outputs of the network for the given patches
+        """
         n_patches = patches.shape[0]
-        pred = np.zeros((n_patches, self.n_out))
+        pred = np.zeros((n_patches, self.n_out), dtype=np.float32)
         batch_size = min(200, n_patches)
         pred_fun = self.generate_testing_function(batch_size)
 
@@ -63,16 +89,48 @@ class Network():
 
         return pred
 
+    def create_scaling_from_raw_data(self, data):
+        self.scalar_mean = np.mean(data, axis=0)
+        self.scalar_std = np.std(data, axis=0)
+
+    def create_scaling_from_raw_database(self, ds):
+        self.create_scaling_from_raw_data(ds.train_x.get_value(borrow=True))
+
+    def scale_dataset(self, dataset):
+        dataset.patch -= self.scalar_mean
+        dataset.patch /= self.scalar_std
+
+    def scale_database(self, database):
+        database.train_x.set_value(self.scale_raw_data(database.train_x.get_value(borrow=True)))
+        database.valid_x.set_value(self.scale_raw_data(database.valid_x.get_value(borrow=True)))
+        database.test_x.set_value(self.scale_raw_data(database.test_x.get_value(borrow=True)))
+
+    def scale_raw_data(self, data):
+        data -= self.scalar_mean
+        data /= self.scalar_std
+        return data
+
     def save_parameters(self, file_name):
+        """
+        Save parameters (weights, biases) of the network in an hdf5 file
+        """
         f = h5py.File("../networks/" + file_name, "w")
         for i, l in enumerate(self.layers):
             l.save_parameters(f, "layer" + str(i))
+        f.create_dataset("scalar_mean", data=self.scalar_mean, dtype='f')
+        f.create_dataset("scalar_std", data=self.scalar_std, dtype='f')
         f.close()
 
     def load_parameters(self, file_name):
+        """
+        Load parameters (weights, biases) of the network from an hdf5 file
+        """
         f = h5py.File("../networks/" + file_name, "r")
         for i, l in enumerate(self.layers):
             l.load_parameters(f, "layer" + str(i))
+
+        self.scalar_mean = f["scalar_mean"].value
+        self.scalar_std = f["scalar_std"].value
         f.close()
 
 
