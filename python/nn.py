@@ -207,7 +207,7 @@ class Network3(Network):
         # maxpooling reduces this further to (24/2,24/2) = (12,12)
         # 4D output tensor is thus of shape (batch_size,nkerns[0],12,12)
         kernel_width0 = 5
-        n_kern0 = 20
+        n_kern0 = 10
         layer0 = layer.LayerConv2D(neuron_relu,
                                    image_shape=(1, patch_width, patch_width),
                                    filter_shape=(n_kern0, 1, kernel_width0, kernel_width0))
@@ -218,7 +218,7 @@ class Network3(Network):
         # 4D output tensor is thus of shape (nkerns[0],nkerns[1],4,4)
         filter_map_width1 = (patch_width - kernel_width0 + 1)
         kernel_width1 = 5
-        n_kern1 = 50
+        n_kern1 = 10
         layer1 = layer.LayerConv2D(neuron_relu,
                                    image_shape=(n_kern0, filter_map_width1, filter_map_width1),
                                    filter_shape=(n_kern1, n_kern0, kernel_width1, kernel_width1))
@@ -229,7 +229,7 @@ class Network3(Network):
         # construct a fully-connected sigmoidal layer
         filter_map_with2 = (filter_map_width1 - kernel_width1 + 1)
         n_in2 = n_kern1 * filter_map_with2 * filter_map_with2
-        n_out2 = 500
+        n_out2 = 100
         layer2 = layer.LayerFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
 
         # classify the values of the fully-connected sigmoidal layer

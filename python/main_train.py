@@ -3,7 +3,7 @@ __author__ = 'adeb'
 import sys
 import ConfigParser
 
-from database import DataBase, analyse_data
+from database import DataBase
 import nn
 import trainer
 
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     # net = nn.Network1(ds.patch_width * ds.patch_width, ds.n_classes)
 
     # CNN network
-    net = nn.Network2(ds.patch_width, ds.n_classes)
+    net = nn.Network3(ds.patch_width, ds.n_classes)
 
     # ### Train the network
     t = trainer.Trainer(training_cf, net, ds)

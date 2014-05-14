@@ -2,6 +2,7 @@ __author__ = 'adeb'
 
 import numpy as np
 
+from scipy.ndimage.interpolation import rotate
 
 class PickPatch():
     """
@@ -48,3 +49,42 @@ class PickPatchParallelOrthogonal(PickPatch):
             x, y = np.meshgrid(v_other_axis[0], v_other_axis[1])
             idx_patch[i] = np.ravel_multi_index((x.ravel(), np.tile(v_parallel_axis, x.size), y.ravel()), dims)
             patch[i] = mri[x, v_parallel_axis, y].ravel()
+
+
+class PickPatchSlightlyRotated(PickPatch):
+    def __init__(self, parallel_axis, max_degree_rotation):
+        PickPatch.__init__(self)
+        self.parallel_axis = parallel_axis
+        self.max_degree_rotation = max_degree_rotation
+
+    def pick_virtual(self, patch, idx_patch, vx, mri, label, patch_width):
+        dims = mri.shape
+        radius = patch_width / 2
+
+        def crop(j, voxel):
+            li = voxel[j] - radius
+            ls = voxel[j] + radius + 1
+            if li < 0:
+                li = 0
+            if ls >= dims[j]:
+                ls = dims[j]-1
+            return slice(li, ls)
+
+        for i in xrange(idx_patch.shape[0]):
+            vx_cur = vx[i]
+            v_axis = []
+            for ax in range(3):
+                v_axis.append(crop(ax, vx_cur))
+
+            cube = mri[v_axis[0], v_axis[1], v_axis[2]]
+            cube = rotate(cube, np.random.uniform(-self.max_degree_rotation, -self.max_degree_rotation), axes=(0, 1))
+            cube = rotate(cube, np.random.uniform(-self.max_degree_rotation, -self.max_degree_rotation), axes=(1, 2))
+            cube = rotate(cube, np.random.uniform(-self.max_degree_rotation, -self.max_degree_rotation), axes=(2, 0))
+
+            central_vx_cube = np.array(cube.shape)/2
+            li = central_vx_cube - radius
+            ls = central_vx_cube + radius + 1
+            li[self.parallel_axis] = central_vx_cube[self.parallel_axis]
+            ls[self.parallel_axis] = central_vx_cube[self.parallel_axis]+1
+
+            patch[i] = cube[li[0]:ls[0], li[1]:ls[1], li[2]:ls[2]].ravel()

@@ -7,7 +7,7 @@ from dataset import Dataset
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
-        ini_file = "creation_testing_data_1.ini"
+        ini_file = "creation_training_data_1.ini"
     else:
         ini_file = str(sys.argv[1])
 

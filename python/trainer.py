@@ -8,10 +8,13 @@ import numpy as np
 import theano
 import theano.tensor as T
 
+from dataset import analyse_data
 
 class Trainer():
     def __init__(self, config, net, ds):
         print '... configure training'
+
+        analyse_data(ds.train_y.get_value())
 
         # Scale the data
         net.create_scaling_from_raw_database(ds)

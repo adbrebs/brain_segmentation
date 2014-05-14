@@ -4,7 +4,6 @@ import os
 import glob
 import math
 from datetime import datetime
-from multiprocessing import Pool
 
 import h5py
 import nibabel as nib
@@ -79,7 +78,7 @@ class Dataset():
 
         # Create the objects responsible for picking the voxels
         self.pick_vx = self.create_pick_voxel(config_ini)
-        self.pick_patch = PickPatchParallelOrthogonal(1)
+        self.pick_patch = PickPatchSlightlyRotated(1)
         self.pick_tg = PickTgCentered()
 
         self.is_perm = config_ini.getboolean(cat_ini, 'perm')
@@ -95,14 +94,19 @@ class Dataset():
 
         # Extract patches by generating the data in parallel on the CPU cores
         print '... populate the dataset'
-        p = Pool()
-        res_all = p.imap(ExtractPatchesFromFile(self.file_list, self.n_classes, conv_mri_patch), range(self.n_files))
+        
+        def extractPatchesFromFile(i):
+            mri_file, label_file = self.file_list[i]
+            return conv_mri_patch.convert(mri_file, label_file, self.n_classes)
+
+        # Generation of the data in parallel on the CPU cores
+        res_all = parmap(extractPatchesFromFile, range(self.n_files))
 
         # Count the number of patches
         self.n_patches = 0
-        for i, res in enumerate(res_all):
+        for res in res_all:
             self.n_patches += res[0].shape[0]
-
+            
         # Initialize the containers
         self.patch = np.zeros((self.n_patches, self.patch_width**2), dtype=np.float32)
         self.idx_patch = np.zeros((self.n_patches, self.patch_width**2), dtype=int)
@@ -320,3 +324,20 @@ def create_img_from_pred(vx, pred, shape):
     elif len(shape) == 3:
         pred_img[vx[:, 0], vx[:, 1], vx[:, 2]] = pred
     return pred_img
+
+
+def analyse_data(targets):
+    # Number of classes
+    targets_scalar = np.argmax(targets, axis=1)
+    classes = np.unique(targets_scalar)
+    n_classes = len(classes)
+    print("There are {} regions in the dataset".format(n_classes))
+
+    a = np.bincount(targets_scalar)
+    b = np.nonzero(a)[0]
+    c = a[b].astype(float, copy=False)
+    c /= sum(c)
+
+    print("    The largest region represents {} % of the image".format(max(c) * 100))
+
+    return b, c

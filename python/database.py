@@ -50,20 +50,3 @@ class DataBase():
         self.n_train = self.train_x.get_value(borrow=True).shape[0]
         self.n_valid = self.valid_x.get_value(borrow=True).shape[0]
         self.n_test = self.test_x.get_value(borrow=True).shape[0]
-
-
-def analyse_data(inputs, targets):
-    # Number of classes
-    targets_scalar = np.argmax(targets, axis=1)
-    classes = np.unique(targets_scalar)
-    n_classes = len(classes)
-    n_data = targets.shape[0]
-    print("There are {} datapoints in the dataset".format(n_data))
-    print("There are {} regions to segment in the dataset".format(n_classes))
-
-    a = np.bincount(targets_scalar)
-    b = np.nonzero(a)[0]
-    c = a[b].astype(float, copy=False)
-    c /= sum(c)
-
-    return b, c
