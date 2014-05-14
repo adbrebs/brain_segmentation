@@ -4,6 +4,7 @@ import os
 import glob
 import math
 from datetime import datetime
+from multiprocessing import Pool
 
 import h5py
 import nibabel as nib
@@ -92,15 +93,10 @@ class Dataset():
         # Create the mri-patch converter
         conv_mri_patch = ConverterMriPatch(self.patch_width, self.pick_vx, self.pick_patch, self.pick_tg)
 
-        # Extract patches
+        # Extract patches by generating the data in parallel on the CPU cores
         print '... populate the dataset'
-
-        def extractPatchesFromFile(i):
-            mri_file, label_file = self.file_list[i]
-            return conv_mri_patch.convert(mri_file, label_file, self.n_classes)
-
-        # Generation of the data in parallel on the CPU cores
-        res_all = parmap(extractPatchesFromFile, range(self.n_files))
+        p = Pool()
+        res_all = p.imap(ExtractPatchesFromFile(self.file_list, self.n_classes, conv_mri_patch), range(self.n_files))
 
         # Count the number of patches
         self.n_patches = 0
@@ -130,7 +126,6 @@ class Dataset():
             self.tg = self.tg[perm]
 
         self.n_patches = self.patch.shape[0]
-
 
     def create_pick_voxel(self, config_ini):
         """
@@ -228,6 +223,20 @@ class Dataset():
         f.close()
 
 
+class ExtractPatchesFromFile(object):
+    """
+    Class used for parallelizing the extraction of patches in the different files
+    """
+    def __init__(self, file_list, n_classes, conv_mri_patch):
+        self.file_list = file_list
+        self.n_classes = n_classes
+        self.conv_mri_patch = conv_mri_patch
+
+    def __call__(self, i):
+        mri_file, label_file = self.file_list[i]
+        return self.conv_mri_patch.convert(mri_file, label_file, self.n_classes)
+
+
 class ConverterMriPatch():
     """
     Class that manages the convertion of an mri file into a dataset of patches
@@ -258,7 +267,7 @@ def list_miccai_files():
     label_path = "../data/miccai/label/"
 
     return [(mri_files[i], label_path + os.path.basename(mri_files[i]))
-            for i in xrange(n_files)]
+            for i in xrange(1, n_files)] # On purpose, don't include the first file (will be used for testing)
 
 
 def crop_image(mri, lab):

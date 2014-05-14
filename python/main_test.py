@@ -1,7 +1,5 @@
 __author__ = 'adeb'
 
-import sys
-import ConfigParser
 
 import matplotlib
 matplotlib.use('Agg')
@@ -17,7 +15,6 @@ from pick_target import *
 from dataset import Dataset, crop_image
 
 
-
 if __name__ == '__main__':
 
     patch_width = 29
@@ -25,10 +22,10 @@ if __name__ == '__main__':
 
     ### Load the network
     net = nn.Network2(patch_width, n_classes)
-    net.load_parameters("net3.net")
+    net.load_parameters("net4.net")
 
     ### Create the patches
-    file = [('../data/miccai/mri/1025.nii', '../data/miccai/label/1025.nii')]
+    file = [('../data/miccai/mri/1000.nii', '../data/miccai/label/1000.nii')]
     mri = nibabel.load(file[0][0]).get_data().squeeze()
     lab = nibabel.load(file[0][1]).get_data().squeeze()
     mri, lab = crop_image(mri, lab)

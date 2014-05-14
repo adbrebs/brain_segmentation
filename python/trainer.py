@@ -7,10 +7,7 @@ import numpy as np
 
 import theano
 import theano.tensor as T
-import warnings
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore",category=DeprecationWarning)
-    from sklearn.preprocessing import StandardScaler as stdScaler
+
 
 class Trainer():
     def __init__(self, config, net, ds):

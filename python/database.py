@@ -12,7 +12,6 @@ class DataBase():
 
         training_data_file = config.get('dataset', 'training_data')
         testing_data_file = config.get('dataset', 'testing_data')
-        standardization = config.getboolean('dataset', 'standardization')
 
         print '... loading data ' + training_data_file + ' and ' + testing_data_file
 

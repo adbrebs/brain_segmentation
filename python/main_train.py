@@ -36,4 +36,4 @@ if __name__ == '__main__':
     t.train()
 
     ### Save the network
-    net.save_parameters("net3.net")
+    net.save_parameters(training_cf.get("general", "net"))
