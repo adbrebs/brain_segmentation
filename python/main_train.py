@@ -3,9 +3,9 @@ __author__ = 'adeb'
 import sys
 import ConfigParser
 
-from database import DataBase
+from database import DataBaseBrainParcellation
 import nn
-import trainer
+from trainer import Trainer
 
 
 def load_config():
@@ -22,17 +22,17 @@ if __name__ == '__main__':
     training_cf = load_config()
 
     ### Create the database
-    ds = DataBase(training_cf)
+    ds = DataBaseBrainParcellation()
+    ds.load_from_config(training_cf)
 
     ### Create the network
     # MLP kind network
     # net = nn.Network1(ds.patch_width * ds.patch_width, ds.n_classes)
-
     # CNN network
-    net = nn.Network3(ds.patch_width, ds.n_classes)
+    net = nn.Network2(ds.patch_width, ds.n_outputs)
 
-    # ### Train the network
-    t = trainer.Trainer(training_cf, net, ds)
+    ### Train the network
+    t = Trainer(training_cf, net, ds)
     t.train()
 
     ### Save the network

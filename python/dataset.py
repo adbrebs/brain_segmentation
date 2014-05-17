@@ -14,7 +14,70 @@ from pick_patch import *
 from pick_target import *
 
 
+
 class Dataset():
+    def __init__(self):
+        self.inputs = None
+        self.outputs = None
+
+        self.n_outputs = None
+        self.n_data = None
+
+        self.is_perm = None
+
+    def generate_from_config(self, config_ini):
+        """
+        Generate a new dataset from a config file
+        """
+        raise NotImplementedError
+
+    def generate_from(self, file_list, n_classes, patch_width, is_perm, n_patch_per_voxel, pick_vx, pick_patch, pick_tg):
+        """
+        Generate a new dataset from the arguments
+        """
+        raise NotImplementedError
+
+    def write(self, file_name):
+        """
+        write the dataset in a hdf5 file
+        """
+        h5file = h5py.File("../data/" + file_name, "w")
+        h5file.create_dataset("inputs", data=self.inputs, dtype='f')
+        h5file.create_dataset("outputs", data=self.outputs, dtype='f')
+
+        h5file.attrs['creation_date'] = str(datetime.now())
+        h5file.attrs['n_data'] = self.n_data
+        h5file.attrs['n_classes'] = self.n_outputs
+        h5file.attrs['is_perm'] = self.is_perm
+
+        self.write_virtual(h5file)
+
+        h5file.close()
+
+    def write_virtual(self, h5file):
+        raise NotImplementedError
+
+    def read(self, file_name):
+        """
+        load the dataset from a hdf5 file
+        """
+        h5file = h5py.File("../data/" + file_name, "r")
+        self.inputs = h5file["inputs"].value
+        self.outputs = h5file["outputs"].value
+
+        self.n_data = int(h5file.attrs["n_data"])
+        self.n_outputs = int(h5file.attrs["n_classes"])
+        self.is_perm = bool(h5file.attrs['is_perm'])
+
+        self.read_virtual(h5file)
+
+        h5file.close()
+
+    def read_virtual(self, h5file):
+        raise NotImplementedError
+
+
+class DatasetBrainParcellation(Dataset):
     """
     Create, store, save, load a dataset.
 
@@ -34,10 +97,10 @@ class Dataset():
         tg(array n_patches x n_classes): Array containing the targets for each patch
     """
     def __init__(self):
+        Dataset.__init__(self)
 
         self.file_list = None
         self.n_files = None
-        self.n_classes = None
 
         self.patch_width = None
         self.n_vx = None
@@ -47,20 +110,13 @@ class Dataset():
         self.pick_patch = None
         self.pick_tg = None
 
-        self.n_patches = None
-
-        self.is_perm = None
+        self.n_data = None
 
         # Initialize the containers
-        self.patch = None
         self.idx_patch = None
         self.vx = None
-        self.tg = None
 
     def generate_from_config(self, config_ini):
-        """
-        Generate a new dataset from a config file
-        """
         print '... generate the dataset'
         cat_ini = 'generate_data'
 
@@ -68,7 +124,7 @@ class Dataset():
         source = config_ini.get(cat_ini, 'source')
         if source == 'miccai':
             self.file_list = list_miccai_files()
-            self.n_classes = 139
+            self.n_outputs = 139
         else:
             print "error source"
 
@@ -78,7 +134,7 @@ class Dataset():
 
         # Create the objects responsible for picking the voxels
         self.pick_vx = self.create_pick_voxel(config_ini)
-        self.pick_patch = PickPatchSlightlyRotated(1)
+        self.pick_patch = PickPatchParallelOrthogonal(1)
         self.pick_tg = PickTgCentered()
 
         self.is_perm = config_ini.getboolean(cat_ini, 'perm')
@@ -97,39 +153,39 @@ class Dataset():
         
         def extractPatchesFromFile(i):
             mri_file, label_file = self.file_list[i]
-            return conv_mri_patch.convert(mri_file, label_file, self.n_classes)
+            return conv_mri_patch.convert(mri_file, label_file, self.n_outputs)
 
         # Generation of the data in parallel on the CPU cores
         res_all = parmap(extractPatchesFromFile, range(self.n_files))
 
         # Count the number of patches
-        self.n_patches = 0
+        self.n_data = 0
         for res in res_all:
-            self.n_patches += res[0].shape[0]
+            self.n_data += res[0].shape[0]
             
         # Initialize the containers
-        self.patch = np.zeros((self.n_patches, self.patch_width**2), dtype=np.float32)
-        self.idx_patch = np.zeros((self.n_patches, self.patch_width**2), dtype=int)
-        self.vx = np.zeros((self.n_patches, 3), dtype=int)
-        self.tg = np.zeros((self.n_patches, self.n_classes), dtype=np.float32)
+        self.inputs = np.zeros((self.n_data, self.patch_width**2), dtype=np.float32)
+        self.idx_patch = np.zeros((self.n_data, self.patch_width**2), dtype=int)
+        self.vx = np.zeros((self.n_data, 3), dtype=int)
+        self.outputs = np.zeros((self.n_data, self.n_outputs), dtype=np.float32)
 
         # Populate the containers
         idx_writing_1 = 0
         for res in res_all:
             idx_writing_2 = idx_writing_1 + res[0].shape[0]
             s = slice(idx_writing_1, idx_writing_2)
-            self.vx[s], self.patch[s], self.idx_patch[s], self.tg[s] = res[0:4]
+            self.vx[s], self.inputs[s], self.idx_patch[s], self.outputs[s] = res[0:4]
             idx_writing_1 = idx_writing_2
 
         # Permute data
         if self.is_perm:
-            perm = np.random.permutation(self.n_patches)
-            self.patch = self.patch[perm]
+            perm = np.random.permutation(self.n_data)
+            self.inputs = self.inputs[perm]
             self.idx_patch = self.idx_patch[perm]
             self.vx = self.vx[perm]
-            self.tg = self.tg[perm]
+            self.outputs = self.outputs[perm]
 
-        self.n_patches = self.patch.shape[0]
+        self.n_data = self.inputs.shape[0]
 
     def create_pick_voxel(self, config_ini):
         """
@@ -152,7 +208,7 @@ class Dataset():
             self.n_vx = config_ini.getint('pick_voxel', 'n_vx')
 
             # Re-adjust so there is no rounding problem with the number of files and classes
-            divisor = self.n_files * self.n_classes
+            divisor = self.n_files * self.n_outputs
             self.n_vx = int(math.ceil(float(self.n_vx) / divisor) * divisor)
             n_vx_per_file = self.n_vx / self.n_files
 
@@ -166,15 +222,12 @@ class Dataset():
 
         return PickVoxel(select_region, extract_voxel)
 
-    def populate_from(self, file_list, n_classes, patch_width, is_perm, n_patch_per_voxel, pick_vx, pick_patch, pick_tg):
-        """
-        Generate a new dataset from the arguments
-        """
+    def generate_from(self, file_list, n_classes, patch_width, is_perm, n_patch_per_voxel, pick_vx, pick_patch, pick_tg):
         print '... generate the dataset'
         cat_ini = 'generate_data'
 
         self.file_list = file_list
-        self.n_classes = n_classes
+        self.n_outputs = n_classes
 
         self.n_files = len(self.file_list)
         self.patch_width = patch_width
@@ -189,42 +242,23 @@ class Dataset():
 
         self.__generate_common()
 
-    def write(self, file_name):
-        """
-        write the dataset in a hdf5 file
-        """
-        f = h5py.File("../data/" + file_name, "w")
-        f.create_dataset("patches", data=self.patch, dtype='f')
-        f.create_dataset("targets", data=self.tg, dtype='f')
-        f.create_dataset("voxels", data=self.vx, dtype='f')
-        f.create_dataset("idx_patches", data=self.idx_patch, dtype='f')
+    def write_virtual(self, h5file):
 
-        f.attrs['creation_date'] = str(datetime.now())
-        f.attrs['n_vx'] = self.n_vx
-        f.attrs['n_patch_per_voxel'] = self.n_patch_per_voxel
-        f.attrs['n_patches'] = self.n_patches
-        f.attrs['patch_width'] = self.patch_width
-        f.attrs['n_classes'] = self.n_classes
-        f.attrs['is_perm'] = self.is_perm
-        f.close()
+        h5file.create_dataset("voxels", data=self.vx, dtype='f')
+        h5file.create_dataset("idx_patches", data=self.idx_patch, dtype='f')
 
-    def read(self, file_name):
-        """
-        load the dataset from a hdf5 file
-        """
-        f = h5py.File("../data/" + file_name, "r")
-        self.patch = f["patches"].value
-        self.tg = f["targets"].value
-        self.vx = f["voxels"].value
-        self.idx_patch = f["idx_patches"].value
+        h5file.attrs['n_vx'] = self.n_vx
+        h5file.attrs['n_patch_per_voxel'] = self.n_patch_per_voxel
+        h5file.attrs['patch_width'] = self.patch_width
 
-        self.n_vx = int(f.attrs["n_vx"])
-        self.n_patch_per_voxel = int(f.attrs["n_patch_per_voxel"])
-        self.n_patches = int(f.attrs["n_patches"])
-        self.patch_width = int(f.attrs["patch_width"])
-        self.n_classes = int(f.attrs["n_classes"])
-        self.is_perm = bool(f.attrs['is_perm'])
-        f.close()
+    def read_virtual(self, h5file):
+
+        self.vx = h5file["voxels"].value
+        self.idx_patch = h5file["idx_patches"].value
+
+        self.n_vx = int(h5file.attrs["n_vx"])
+        self.n_patch_per_voxel = int(h5file.attrs["n_patch_per_voxel"])
+        self.patch_width = int(h5file.attrs["patch_width"])
 
 
 class ExtractPatchesFromFile(object):
@@ -341,3 +375,18 @@ def analyse_data(targets):
     print("    The largest region represents {} % of the image".format(max(c) * 100))
 
     return b, c
+
+
+def compute_dice(img_pred, img_true, n_classes_max):
+    classes = np.unique(img_true)
+    n_classes = len(classes)
+    dices = np.zeros((n_classes_max, 1))
+
+    for c in classes:
+        class_pred = img_pred == c
+        class_true = img_true == c
+        class_common = class_pred[class_true]
+        dices[c] = 2 * np.sum(class_common, dtype=float) / (np.sum(class_pred) + np.sum(class_true))
+
+    return dices
+

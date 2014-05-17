@@ -3,7 +3,7 @@ __author__ = 'adeb'
 import sys
 import ConfigParser
 
-from dataset import Dataset
+from dataset import DatasetBrainParcellation
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
@@ -17,6 +17,6 @@ if __name__ == '__main__':
     file_name = config_ini.get('generate_data', 'file_name')
 
     # Generate the dataset
-    dc_training = Dataset()
+    dc_training = DatasetBrainParcellation()
     dc_training.generate_from_config(config_ini)
     dc_training.write(file_name)

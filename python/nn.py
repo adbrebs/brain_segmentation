@@ -13,8 +13,6 @@ import neurons
 
 class Network():
     """
-    Create, store, save, load a dataset.
-
     Attributes:
         n_in: List of pairs (mri_file, label_file)
         n_out: Number of output classes in the dataset

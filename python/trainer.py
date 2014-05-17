@@ -10,6 +10,7 @@ import theano.tensor as T
 
 from dataset import analyse_data
 
+
 class Trainer():
     def __init__(self, config, net, ds):
         print '... configure training'
