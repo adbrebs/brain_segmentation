@@ -30,8 +30,8 @@ class Network():
         self.layers = []
         self.params = []
 
-        self.scalar_mean = None
-        self.scalar_std = None
+        self.scalar_mean = 0
+        self.scalar_std = 0
 
     def init(self, n_in, n_out):
         print '... initialize the model'
@@ -99,8 +99,8 @@ class Network():
         self.create_scaling_from_raw_data(ds.train_x.get_value(borrow=True))
 
     def scale_dataset(self, dataset):
-        dataset.patch -= self.scalar_mean
-        dataset.patch /= self.scalar_std
+        dataset.inputs -= self.scalar_mean
+        dataset.inputs /= self.scalar_std
 
     def scale_database(self, database):
         database.train_x.set_value(self.scale_raw_data(database.train_x.get_value(borrow=True)))
@@ -155,8 +155,8 @@ class Network1(Network):
     def init(self, n_in, n_out):
         Network.init(self, n_in, n_out)
 
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronRELU(), n_in, 100))
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 100, n_out))
+        self.layers.append(layer.LayerFullyConnected(neurons.NeuronRELU(), n_in, 1))
+        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 1, n_out))
 
         self.params = []
         for l in self.layers:

@@ -12,14 +12,17 @@ from dataset import analyse_data
 
 
 class Trainer():
-    def __init__(self, config, net, ds):
+    def __init__(self, config, net, ds, scale=True):
         print '... configure training'
+
+        self.net = net
 
         analyse_data(ds.train_y.get_value())
 
         # Scale the data
-        net.create_scaling_from_raw_database(ds)
-        net.scale_database(ds)
+        if scale:
+            net.create_scaling_from_raw_database(ds)
+            net.scale_database(ds)
 
         self.batch_size = config.getint('training', 'batch_size')
         self.learning_rate = config.getfloat('training', 'learning_rate')
@@ -137,6 +140,7 @@ class Trainer():
         best_validation_loss = np.inf
         best_iter = 0
         test_score = 0.
+        best_params = None
 
         freq_display_batch = self.n_train_batches / 4
         epoch = 0
@@ -178,6 +182,8 @@ class Trainer():
                 if this_validation_loss < best_validation_loss * improvement_threshold:
                     patience += patience_increase
 
+                best_params = self.save_params()
+
                 # save best validation score and iteration number
                 best_validation_loss = this_validation_loss
                 best_iter = id_mini_batch
@@ -192,7 +198,18 @@ class Trainer():
             starting_epoch_time = time.clock()
 
         end_time = time.clock()
+        self.load_params(best_params)
         print('Training complete.')
         print('Best validation score of %f obtained at iteration %i with test performance %f' %
               (best_validation_loss, best_iter + 1, test_score))
         print >> sys.stderr, ('The code for file ran for %.2fm' % ((end_time - start_time) / 60.))
+
+    def save_params(self):
+        params = []
+        for p in self.net.params:
+            params.append(p.get_value())
+        return params
+
+    def load_params(self, params):
+        for p, p_sym in zip(params, self.net.params):
+            p_sym.set_value(p)
