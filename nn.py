@@ -23,16 +23,20 @@ class Network():
         scalar_mean: mean for standardizing the data
         scalar_std: std for standardizing the data
     """
-    def __init__(self, n_in, n_out):
-        print '... initialize the model'
-        self.n_in = n_in
-        self.n_out = n_out
+    def __init__(self):
+        self.n_in = None
+        self.n_out = None
 
         self.layers = []
         self.params = []
 
         self.scalar_mean = None
         self.scalar_std = None
+
+    def init(self, n_in, n_out):
+        print '... initialize the model'
+        self.n_in = n_in
+        self.n_out = n_out
 
     def forward(self, x, batch_size):
         """Return the output of the network
@@ -113,17 +117,26 @@ class Network():
         Save parameters (weights, biases) of the network in an hdf5 file
         """
         f = h5py.File("./networks/" + file_name, "w")
+        f.attrs['n_in'] = self.n_in
+        f.attrs['n_out'] = self.n_out
+        self.save_parameters_virtual(f)
         for i, l in enumerate(self.layers):
             l.save_parameters(f, "layer" + str(i))
         f.create_dataset("scalar_mean", data=self.scalar_mean, dtype='f')
         f.create_dataset("scalar_std", data=self.scalar_std, dtype='f')
         f.close()
 
+    def save_parameters_virtual(self, h5file):
+        raise NotImplementedError
+
     def load_parameters(self, file_name):
         """
         Load parameters (weights, biases) of the network from an hdf5 file
         """
         f = h5py.File("./networks/" + file_name, "r")
+        self.n_in = int(f.attrs["n_in"])
+        self.n_out = int(f.attrs["n_out"])
+        self.load_parameters_virtual(f)
         for i, l in enumerate(self.layers):
             l.load_parameters(f, "layer" + str(i))
 
@@ -131,10 +144,16 @@ class Network():
         self.scalar_std = f["scalar_std"].value
         f.close()
 
+    def load_parameters_virtual(self, h5file):
+        raise NotImplementedError
+
 
 class Network1(Network):
-    def __init__(self, n_in, n_out):
-        Network.__init__(self, n_in, n_out)
+    def __init__(self):
+        Network.__init__(self)
+
+    def init(self, n_in, n_out):
+        Network.init(self, n_in, n_out)
 
         self.layers.append(layer.LayerFullyConnected(neurons.NeuronRELU(), n_in, 100))
         self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 100, n_out))
@@ -143,10 +162,22 @@ class Network1(Network):
         for l in self.layers:
             self.params += l.params
 
+    def save_parameters_virtual(self, h5file):
+        pass
+
+    def load_parameters_virtual(self, h5file):
+        self.init(self.n_in, self.n_out)
+
 
 class Network2(Network):
-    def __init__(self, patch_width, n_out):
-        Network.__init__(self, patch_width*patch_width, n_out)
+    def __init__(self):
+        Network.__init__(self)
+        self.patch_width = None
+
+    def init(self, patch_width, n_out):
+        Network.init(self, patch_width*patch_width, n_out)
+
+        self.patch_width = patch_width
 
         neuron_relu = neurons.NeuronRELU()
 
@@ -193,10 +224,23 @@ class Network2(Network):
         for l in self.layers:
             self.params += l.params
 
+    def save_parameters_virtual(self, h5file):
+        h5file.attrs['patch_width'] = self.patch_width
+
+    def load_parameters_virtual(self, h5file):
+        self.patch_width = int(h5file.attrs["patch_width"])
+        self.init(self.patch_width, self.n_out)
+
 
 class Network3(Network):
-    def __init__(self, patch_width, n_out):
-        Network.__init__(self, patch_width*patch_width, n_out)
+    def __init__(self):
+        Network.__init__(self)
+        self.patch_width = None
+
+    def init(self, patch_width, n_out):
+        Network.init(self, patch_width*patch_width, n_out)
+
+        self.patch_width = patch_width
 
         neuron_relu = neurons.NeuronRELU()
 
@@ -238,3 +282,10 @@ class Network3(Network):
         self.params = []
         for l in self.layers:
             self.params += l.params
+
+    def save_parameters_virtual(self, h5file):
+        h5file.attrs['patch_width'] = self.patch_width
+
+    def load_parameters_virtual(self, h5file):
+        self.patch_width = int(h5file.attrs["patch_width"])
+        self.init(self.patch_width, self.n_out)

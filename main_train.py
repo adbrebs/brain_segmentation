@@ -29,7 +29,8 @@ if __name__ == '__main__':
     # MLP kind network
     # net = nn.Network1(ds.patch_width * ds.patch_width, ds.n_classes)
     # CNN network
-    net = nn.Network2(db.patch_width, db.n_out_features)
+    net = nn.Network2()
+    net.init(db.patch_width, db.n_out_features)
 
     ### Train the network
     t = Trainer(training_cf, net, db)

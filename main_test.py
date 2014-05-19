@@ -21,7 +21,7 @@ if __name__ == '__main__':
     n_classes = 139
 
     ### Load the network
-    net = nn.Network2(patch_width, n_classes)
+    net = nn.Network2()
     net.load_parameters("net4.net")
 
     ### Create the patches
