@@ -14,28 +14,35 @@ from pick_patch import *
 from pick_target import *
 
 
-
 class Dataset():
+    """
+    Create, store, save, load a dataset.
+
+    Attributes:
+        inputs (2D array):
+        outputs (2D array):
+        n_out_features (int): number of output features
+        n_data (int): number of datapoints
+        is_perm (boolean): indicates if the dataset is shuffled or not
+    """
     def __init__(self):
         self.inputs = None
         self.outputs = None
 
-        self.n_outputs = None
+        self.n_in_features = None
+        self.n_out_features = None
         self.n_data = None
 
         self.is_perm = None
 
-    def generate_from_config(self, config_ini):
-        """
-        Generate a new dataset from a config file
-        """
-        raise NotImplementedError
+    def permute_data(self):
+        perm = np.random.permutation(self.n_data)
+        self.inputs = self.inputs[perm]
+        self.outputs = self.outputs[perm]
+        self.permute_data_virtual(perm)
 
-    def generate_from(self, file_list, n_classes, patch_width, is_perm, n_patch_per_voxel, pick_vx, pick_patch, pick_tg):
-        """
-        Generate a new dataset from the arguments
-        """
-        raise NotImplementedError
+    def permute_data_virtual(self, perm):
+        pass
 
     def write(self, file_name):
         """
@@ -47,7 +54,8 @@ class Dataset():
 
         h5file.attrs['creation_date'] = str(datetime.now())
         h5file.attrs['n_data'] = self.n_data
-        h5file.attrs['n_classes'] = self.n_outputs
+        h5file.attrs['n_in_features'] = self.n_in_features
+        h5file.attrs['n_out_features'] = self.n_out_features
         h5file.attrs['is_perm'] = self.is_perm
 
         self.write_virtual(h5file)
@@ -66,7 +74,8 @@ class Dataset():
         self.outputs = h5file["outputs"].value
 
         self.n_data = int(h5file.attrs["n_data"])
-        self.n_outputs = int(h5file.attrs["n_classes"])
+        self.n_in_features = int(h5file.attrs["n_in_features"])
+        self.n_out_features = int(h5file.attrs["n_out_features"])
         self.is_perm = bool(h5file.attrs['is_perm'])
 
         self.read_virtual(h5file)
@@ -79,22 +88,16 @@ class Dataset():
 
 class DatasetBrainParcellation(Dataset):
     """
-    Create, store, save, load a dataset.
-
     Attributes:
         file_list: List of pairs (mri_file, label_file)
-        n_classes: Number of output classes in the dataset
         patch_width: Size of the 2D patch
         n_vx: Number of different voxels in the dataset
         n_patch_per_voxel: There might be several different patches for each voxel
         pick_vx(function): Function to pick voxels
         pick_patch(function): Function to pick patches
         pick_tg(function): Function to pick patches
-        is_perm(boolean): True if the data is unordered
-        patch(array n_patches x patch_width^2): Array containing the patches
         idx_patch(array n_patches x patch_width^2): Array containing the indices of the voxels of the patches
         vx(array n_patches x 3): Array containing the coordinates x, y, z of the voxels
-        tg(array n_patches x n_classes): Array containing the targets for each patch
     """
     def __init__(self):
         Dataset.__init__(self)
@@ -110,13 +113,18 @@ class DatasetBrainParcellation(Dataset):
         self.pick_patch = None
         self.pick_tg = None
 
-        self.n_data = None
-
         # Initialize the containers
         self.idx_patch = None
         self.vx = None
 
+    def permute_data_virtual(self, perm):
+        self.idx_patch = self.idx_patch[perm]
+        self.vx = self.vx[perm]
+
     def generate_from_config(self, config_ini):
+        """
+        Generate a new dataset from a config file
+        """
         print '... generate the dataset'
         cat_ini = 'generate_data'
 
@@ -124,7 +132,7 @@ class DatasetBrainParcellation(Dataset):
         source = config_ini.get(cat_ini, 'source')
         if source == 'miccai':
             self.file_list = list_miccai_files()
-            self.n_outputs = 139
+            self.n_out_features = 139
         else:
             print "error source"
 
@@ -153,7 +161,7 @@ class DatasetBrainParcellation(Dataset):
         
         def extractPatchesFromFile(i):
             mri_file, label_file = self.file_list[i]
-            return conv_mri_patch.convert(mri_file, label_file, self.n_outputs)
+            return conv_mri_patch.convert(mri_file, label_file, self.n_out_features)
 
         # Generation of the data in parallel on the CPU cores
         res_all = parmap(extractPatchesFromFile, range(self.n_files))
@@ -167,7 +175,7 @@ class DatasetBrainParcellation(Dataset):
         self.inputs = np.zeros((self.n_data, self.patch_width**2), dtype=np.float32)
         self.idx_patch = np.zeros((self.n_data, self.patch_width**2), dtype=int)
         self.vx = np.zeros((self.n_data, 3), dtype=int)
-        self.outputs = np.zeros((self.n_data, self.n_outputs), dtype=np.float32)
+        self.outputs = np.zeros((self.n_data, self.n_out_features), dtype=np.float32)
 
         # Populate the containers
         idx_writing_1 = 0
@@ -179,11 +187,7 @@ class DatasetBrainParcellation(Dataset):
 
         # Permute data
         if self.is_perm:
-            perm = np.random.permutation(self.n_data)
-            self.inputs = self.inputs[perm]
-            self.idx_patch = self.idx_patch[perm]
-            self.vx = self.vx[perm]
-            self.outputs = self.outputs[perm]
+            self.permute_data()
 
         self.n_data = self.inputs.shape[0]
 
@@ -208,7 +212,7 @@ class DatasetBrainParcellation(Dataset):
             self.n_vx = config_ini.getint('pick_voxel', 'n_vx')
 
             # Re-adjust so there is no rounding problem with the number of files and classes
-            divisor = self.n_files * self.n_outputs
+            divisor = self.n_files * self.n_out_features
             self.n_vx = int(math.ceil(float(self.n_vx) / divisor) * divisor)
             n_vx_per_file = self.n_vx / self.n_files
 
@@ -227,7 +231,7 @@ class DatasetBrainParcellation(Dataset):
         cat_ini = 'generate_data'
 
         self.file_list = file_list
-        self.n_outputs = n_classes
+        self.n_out_features = n_classes
 
         self.n_files = len(self.file_list)
         self.patch_width = patch_width

@@ -13,7 +13,9 @@ class DataBase():
     """
     def __init__(self):
 
-        self.n_outputs = None
+        self.n_in_features = None
+        self.n_out_features = None
+        self.n_data = None
 
         self.test_x = None
         self.test_y = None
@@ -44,9 +46,12 @@ class DataBase():
         self.train_x = share_data_object(train_x)
         self.train_y = share_data_object(train_y)
 
-        self.n_train = self.train_x.get_value(borrow=True).shape[0]
+        self.n_train, self.n_in_features = self.train_x.get_value(borrow=True).shape
         self.n_valid = self.valid_x.get_value(borrow=True).shape[0]
         self.n_test = self.test_x.get_value(borrow=True).shape[0]
+
+        self.n_out_features = self.train_y.get_value(borrow=True).shape[1]
+        self.n_data = self.n_train + self.n_valid + self.n_test
 
 
 class DataBaseBrainParcellation(DataBase):
@@ -66,7 +71,7 @@ class DataBaseBrainParcellation(DataBase):
         # Load training data
         training_data = DatasetBrainParcellation()
         training_data.read(training_data_file)
-        self.n_outputs = training_data.n_outputs
+        self.n_out_features = training_data.n_out_features
         self.patch_width = training_data.patch_width
         n_data = training_data.n_data
 

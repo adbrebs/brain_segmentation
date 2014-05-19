@@ -125,8 +125,8 @@ class Trainer():
         start_time = time.clock()
 
         # early-stopping parameters
-        patience = 5000  # look as this many minibatches regardless
-        patience_increase = 1000  # wait this much longer when a new best is found
+        patience = 10 * self.n_train_batches  # look as this many minibatches regardless
+        patience_increase = 3 * self.n_train_batches  # wait this much longer when a new best is found
         improvement_threshold = 0.99  # a relative improvement of this much is considered significant
         validation_frequency = min(self.n_train_batches, patience / 2)
                                       # go through this many

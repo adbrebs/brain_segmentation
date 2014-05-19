@@ -136,8 +136,8 @@ class Network1(Network):
     def __init__(self, n_in, n_out):
         Network.__init__(self, n_in, n_out)
 
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronRELU(), n_in, 500))
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 500, n_out))
+        self.layers.append(layer.LayerFullyConnected(neurons.NeuronRELU(), n_in, 100))
+        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 100, n_out))
 
         self.params = []
         for l in self.layers:

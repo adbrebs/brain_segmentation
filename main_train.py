@@ -22,17 +22,17 @@ if __name__ == '__main__':
     training_cf = load_config()
 
     ### Create the database
-    ds = DataBaseBrainParcellation()
-    ds.load_from_config(training_cf)
+    db = DataBaseBrainParcellation()
+    db.load_from_config(training_cf)
 
     ### Create the network
     # MLP kind network
     # net = nn.Network1(ds.patch_width * ds.patch_width, ds.n_classes)
     # CNN network
-    net = nn.Network2(ds.patch_width, ds.n_outputs)
+    net = nn.Network2(db.patch_width, db.n_out_features)
 
     ### Train the network
-    t = Trainer(training_cf, net, ds)
+    t = Trainer(training_cf, net, db)
     t.train()
 
     ### Save the network
