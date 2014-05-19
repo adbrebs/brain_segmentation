@@ -112,7 +112,7 @@ class Network():
         """
         Save parameters (weights, biases) of the network in an hdf5 file
         """
-        f = h5py.File("../networks/" + file_name, "w")
+        f = h5py.File("./networks/" + file_name, "w")
         for i, l in enumerate(self.layers):
             l.save_parameters(f, "layer" + str(i))
         f.create_dataset("scalar_mean", data=self.scalar_mean, dtype='f')
@@ -123,7 +123,7 @@ class Network():
         """
         Load parameters (weights, biases) of the network from an hdf5 file
         """
-        f = h5py.File("../networks/" + file_name, "r")
+        f = h5py.File("./networks/" + file_name, "r")
         for i, l in enumerate(self.layers):
             l.load_parameters(f, "layer" + str(i))
 

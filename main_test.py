@@ -25,7 +25,7 @@ if __name__ == '__main__':
     net.load_parameters("net4.net")
 
     ### Create the patches
-    file = [('../data/miccai/mri/1000.nii', '../data/miccai/label/1000.nii')]
+    file = [('./data/miccai/mri/1000.nii', './data/miccai/label/1000.nii')]
     mri = nibabel.load(file[0][0]).get_data().squeeze()
     lab = nibabel.load(file[0][1]).get_data().squeeze()
     mri, lab = crop_image(mri, lab)
@@ -58,13 +58,13 @@ if __name__ == '__main__':
 
     file_name = "test.png"
     plt.imshow(img_pred)
-    plt.savefig('../images/pred_' + file_name)
+    plt.savefig('./images/pred_' + file_name)
 
     plt.imshow(img_true)
-    plt.savefig('../images/true_' + file_name)
+    plt.savefig('./images/true_' + file_name)
 
     plt.imshow(img_pred != img_true)
-    plt.savefig('../images/diff_' + file_name)
+    plt.savefig('./images/diff_' + file_name)
 
     dices = compute_dice(img_pred, img_true, n_classes)
     print dices

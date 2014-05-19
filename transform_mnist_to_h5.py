@@ -13,7 +13,7 @@ import h5py
 import theano
 import theano.tensor as T
 
-dataset = '../data/mnist.pkl.gz'
+dataset = './data/mnist.pkl.gz'
 
 data_dir, data_file = os.path.split(dataset)
 if data_dir == "" and not os.path.isfile(dataset):
@@ -42,7 +42,7 @@ test_y = numpy.zeros((test_x.shape[0], n_classes))
 test_y[range(test_x.shape[0]), test_y0] = 1
 
 
-f = h5py.File('../data/training_mnist.h5', 'w')
+f = h5py.File('./data/training_mnist.h5', 'w')
 f['/patches'] = train_x
 f['/targets'] = train_y
 f["voxels"] = 0
@@ -56,7 +56,7 @@ f.attrs['is_perm'] = True
 f.close()
 
 
-f = h5py.File('../data/testing_mnist.h5', 'w')
+f = h5py.File('./data/testing_mnist.h5', 'w')
 f['/patches'] = test_x
 f['/targets'] = test_y
 f["voxels"] = 0

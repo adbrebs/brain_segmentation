@@ -48,7 +48,7 @@ class Dataset():
         """
         write the dataset in a hdf5 file
         """
-        h5file = h5py.File("../data/" + file_name, "w")
+        h5file = h5py.File("./data/" + file_name, "w")
         h5file.create_dataset("inputs", data=self.inputs, dtype='f')
         h5file.create_dataset("outputs", data=self.outputs, dtype='f')
 
@@ -69,7 +69,7 @@ class Dataset():
         """
         load the dataset from a hdf5 file
         """
-        h5file = h5py.File("../data/" + file_name, "r")
+        h5file = h5py.File("./data/" + file_name, "r")
         self.inputs = h5file["inputs"].value
         self.outputs = h5file["outputs"].value
 
@@ -304,9 +304,9 @@ class ConverterMriPatch():
 
 
 def list_miccai_files():
-    mri_files = glob.glob("../data/miccai/mri/*.nii")
+    mri_files = glob.glob("./data/miccai/mri/*.nii")
     n_files = len(mri_files)
-    label_path = "../data/miccai/label/"
+    label_path = "./data/miccai/label/"
 
     return [(mri_files[i], label_path + os.path.basename(mri_files[i]))
             for i in xrange(1, n_files)] # On purpose, don't include the first file (will be used for testing)
