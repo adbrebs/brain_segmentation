@@ -33,7 +33,7 @@ class Network():
         self.scalar_mean = 0
         self.scalar_std = 0
 
-    def init(self, n_in, n_out):
+    def init_common(self, n_in, n_out):
         print '... initialize the model'
         self.n_in = n_in
         self.n_out = n_out
@@ -153,10 +153,10 @@ class Network1(Network):
         Network.__init__(self)
 
     def init(self, n_in, n_out):
-        Network.init(self, n_in, n_out)
+        Network.init_common(self, n_in, n_out)
 
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronRELU(), n_in, 1))
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 1, n_out))
+        self.layers.append(layer.LayerFullyConnected(neurons.NeuronRELU(), n_in, 10))
+        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 10, n_out))
 
         self.params = []
         for l in self.layers:
@@ -173,10 +173,12 @@ class Network2(Network):
     def __init__(self):
         Network.__init__(self)
         self.patch_width = None
+        self.patch_height = None
 
-    def init(self, patch_width, n_out):
-        Network.init(self, patch_width*patch_width, n_out)
+    def init(self, patch_height, patch_width, n_out):
+        Network.init_common(self, patch_height*patch_width, n_out)
 
+        self.patch_height = patch_height
         self.patch_width = patch_width
 
         neuron_relu = neurons.NeuronRELU()
@@ -185,33 +187,39 @@ class Network2(Network):
         # filtering reduces the image size to (28-5+1,28-5+1)=(24,24)
         # maxpooling reduces this further to (24/2,24/2) = (12,12)
         # 4D output tensor is thus of shape (batch_size,nkerns[0],12,12)
+        kernel_height0 = 5
         kernel_width0 = 5
-        pool_size0 = 2
+        pool_size_height0 = 2
+        pool_size_width0 = 2
         n_kern0 = 20
         layer0 = layer.LayerConvPool2D(neuron_relu,
-                                       image_shape=(1, patch_width, patch_width),
-                                       filter_shape=(n_kern0, 1, kernel_width0, kernel_width0),
-                                       poolsize=(pool_size0, pool_size0))
+                                       image_shape=(1, patch_height, patch_width),
+                                       filter_shape=(n_kern0, 1, kernel_height0, kernel_width0),
+                                       poolsize=(pool_size_height0, pool_size_width0))
 
         # Construct the second convolutional pooling layer
         # filtering reduces the image size to (12-5+1,12-5+1)=(8,8)
         # maxpooling reduces this further to (8/2,8/2) = (4,4)
         # 4D output tensor is thus of shape (nkerns[0],nkerns[1],4,4)
-        filter_map_width1 = (patch_width - kernel_width0 + 1) / pool_size0
+        filter_map_height1 = (patch_height - kernel_height0 + 1) / pool_size_height0
+        filter_map_width1 = (patch_width - kernel_width0 + 1) / pool_size_width0
+        kernel_height1 = 5
         kernel_width1 = 5
-        pool_size1 = 2
+        pool_size_height1 = 2
+        pool_size_width1 = 2
         n_kern1 = 50
         layer1 = layer.LayerConvPool2D(neuron_relu,
-                                       image_shape=(n_kern0, filter_map_width1, filter_map_width1),
-                                       filter_shape=(n_kern1, n_kern0, kernel_width1, kernel_width1),
-                                       poolsize=(pool_size1, pool_size1))
+                                       image_shape=(n_kern0, filter_map_height1, filter_map_width1),
+                                       filter_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
+                                       poolsize=(pool_size_height1, pool_size_width1))
 
         # the HiddenLayer being fully-connected, it operates on 2D matrices of
         # shape (batch_size,num_pixels) (i.e matrix of rasterized images).
         # This will generate a matrix of shape (20,32*4*4) = (20,512)
         # construct a fully-connected sigmoidal layer
-        filter_map_with2 = (filter_map_width1 - kernel_width1 + 1) / pool_size1
-        n_in2 = n_kern1 * filter_map_with2 * filter_map_with2
+        filter_map_height2 = (filter_map_height1 - kernel_height1 + 1) / pool_size_height1
+        filter_map_with2 = (filter_map_width1 - kernel_width1 + 1) / pool_size_width1
+        n_in2 = n_kern1 * filter_map_height2 * filter_map_with2
         n_out2 = 500
         layer2 = layer.LayerFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
 
@@ -225,67 +233,10 @@ class Network2(Network):
             self.params += l.params
 
     def save_parameters_virtual(self, h5file):
+        h5file.attrs['patch_height'] = self.patch_height
         h5file.attrs['patch_width'] = self.patch_width
 
     def load_parameters_virtual(self, h5file):
+        self.patch_height = int(h5file.attrs["patch_height"])
         self.patch_width = int(h5file.attrs["patch_width"])
-        self.init(self.patch_width, self.n_out)
-
-
-class Network3(Network):
-    def __init__(self):
-        Network.__init__(self)
-        self.patch_width = None
-
-    def init(self, patch_width, n_out):
-        Network.init(self, patch_width*patch_width, n_out)
-
-        self.patch_width = patch_width
-
-        neuron_relu = neurons.NeuronRELU()
-
-        # Construct the first convolutional pooling layer:
-        # filtering reduces the image size to (28-5+1,28-5+1)=(24,24)
-        # maxpooling reduces this further to (24/2,24/2) = (12,12)
-        # 4D output tensor is thus of shape (batch_size,nkerns[0],12,12)
-        kernel_width0 = 5
-        n_kern0 = 10
-        layer0 = layer.LayerConv2D(neuron_relu,
-                                   image_shape=(1, patch_width, patch_width),
-                                   filter_shape=(n_kern0, 1, kernel_width0, kernel_width0))
-
-        # Construct the second convolutional pooling layer
-        # filtering reduces the image size to (12-5+1,12-5+1)=(8,8)
-        # maxpooling reduces this further to (8/2,8/2) = (4,4)
-        # 4D output tensor is thus of shape (nkerns[0],nkerns[1],4,4)
-        filter_map_width1 = (patch_width - kernel_width0 + 1)
-        kernel_width1 = 5
-        n_kern1 = 10
-        layer1 = layer.LayerConv2D(neuron_relu,
-                                   image_shape=(n_kern0, filter_map_width1, filter_map_width1),
-                                   filter_shape=(n_kern1, n_kern0, kernel_width1, kernel_width1))
-
-        # the HiddenLayer being fully-connected, it operates on 2D matrices of
-        # shape (batch_size,num_pixels) (i.e matrix of rasterized images).
-        # This will generate a matrix of shape (20,32*4*4) = (20,512)
-        # construct a fully-connected sigmoidal layer
-        filter_map_with2 = (filter_map_width1 - kernel_width1 + 1)
-        n_in2 = n_kern1 * filter_map_with2 * filter_map_with2
-        n_out2 = 100
-        layer2 = layer.LayerFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
-
-        # classify the values of the fully-connected sigmoidal layer
-        layer3 = layer.LayerFullyConnected(neurons.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
-
-        self.layers = [layer0, layer1, layer2, layer3]
-
-        self.params = []
-        for l in self.layers:
-            self.params += l.params
-
-    def save_parameters_virtual(self, h5file):
-        h5file.attrs['patch_width'] = self.patch_width
-
-    def load_parameters_virtual(self, h5file):
-        self.patch_width = int(h5file.attrs["patch_width"])
-        self.init(self.patch_width, self.n_out)
+        self.init(self.patch_height, self.patch_width, self.n_out)
