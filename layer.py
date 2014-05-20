@@ -83,7 +83,7 @@ class LayerConv2DAbstract(Layer):
             (num input feature maps, image height, image width)
 
             filter_shape (tuple or list of length 4):
-            (number of filters, num input feature maps, filter height,filter width)
+            (number of filters, num input feature maps, filter height, filter width)
         """
         Layer.__init__(self, neuron_type)
         self.image_shape = image_shape
@@ -168,8 +168,8 @@ class LayerConvPool3D(Layer):
     """
     Convolution + pooling layer
     """
-    def __init__(self, neuron_type, in_channels, in_width, in_height, in_depth,
-                 flt_channels, flt_width, flt_height, flt_depth):
+    def __init__(self, neuron_type, in_channels, in_shape,
+                 flt_channels, flt_shape, poolsize):
         """
         Args:
             image_shape (tuple or list of length 4):
@@ -180,8 +180,12 @@ class LayerConvPool3D(Layer):
         """
         Layer.__init__(self, neuron_type)
 
+        in_width, in_height, in_depth = in_shape
+        flt_depth, flt_height, flt_width = flt_shape
+
         self.image_shape = image_shape = (in_depth, in_channels, in_height, in_width)
         self.filter_shape = filter_shape = (flt_channels, flt_depth, in_channels, flt_height, flt_width)
+        self.poolsize = poolsize
 
         fan_in = in_width * in_height * in_depth
         fan_out = flt_channels * flt_width * flt_height * flt_depth
@@ -210,6 +214,6 @@ class LayerConvPool3D(Layer):
                                    filters_shape=self.filter_shape,
                                    border_mode='valid')
 
-        pooled_out = max_pool_3d(conv_out, (2, 2, 2), ignore_border=True)
+        pooled_out = max_pool_3d(conv_out.dimshuffle([0,2,1,3,4]), self.poolsize, ignore_border=True)
 
-        return self.neuron_type.activation_function(conv_out + self.b.dimshuffle('x', 'x', 0, 'x', 'x')).flatten(2)
+        return self.neuron_type.activation_function(pooled_out.dimshuffle([0,2,1,3,4]) + self.b.dimshuffle('x', 'x', 0, 'x', 'x')).flatten(2)

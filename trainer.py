@@ -5,6 +5,9 @@ import time
 import math
 import numpy as np
 
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 import theano
 import theano.tensor as T
 
@@ -52,15 +55,20 @@ class Trainer():
         idx_batch = T.lscalar()
         id1 = idx_batch * self.batch_size
         id2 = (idx_batch + 1) * self.batch_size
-        self.test_model = theano.function(
+        self.testing_score = theano.function(
             inputs=[idx_batch],
             outputs=self.error_rate_symb(y_pred, y_true),
             givens={x: ds.test_x[id1:id2], y_true: ds.test_y[id1:id2]})
 
-        self.validate_model = theano.function(
+        self.validation_score = theano.function(
             inputs=[idx_batch],
             outputs=self.error_rate_symb(y_pred, y_true),
             givens={x: ds.valid_x[id1:id2], y_true: ds.valid_y[id1:id2]})
+
+        self.training_score = theano.function(
+            inputs=[idx_batch],
+            outputs=self.error_rate_symb(y_pred, y_true),
+            givens={x: ds.train_x[id1:id2], y_true: ds.train_y[id1:id2]})
 
         self.train_model = theano.function(
             inputs=[idx_batch],
@@ -132,10 +140,6 @@ class Trainer():
         patience_increase = 3 * self.n_train_batches  # wait this much longer when a new best is found
         improvement_threshold = 0.99  # a relative improvement of this much is considered significant
         validation_frequency = min(self.n_train_batches, patience / 2)
-                                      # go through this many
-                                      # minibatche before checking the network
-                                      # on the validation set; in this case we
-                                      # check every epoch
 
         best_validation_loss = np.inf
         best_iter = 0
@@ -148,6 +152,10 @@ class Trainer():
         id_mini_batch = 0
 
         starting_epoch_time = time.clock()
+
+        training_score_records = []
+        testing_score_records = []
+        validation_score_records = []
 
         while (epoch < self.n_epochs) and (not early_stopping):
             epoch += 1
@@ -168,11 +176,19 @@ class Trainer():
                 if (id_mini_batch + 1) % validation_frequency > 0:
                     continue
 
+                # compute training error
+                training_losses = [self.training_score(i) for i in xrange(self.n_valid_batches)]
+                this_training_loss = np.mean(training_losses)
+                print("    minibatch {}/{}, training error: {}".format(
+                    minibatch_index + 1, self.n_train_batches, this_training_loss))
+                training_score_records.append((id_mini_batch, this_training_loss))
+
                 # compute validation error
-                validation_losses = [self.validate_model(i) for i in xrange(self.n_valid_batches)]
+                validation_losses = [self.validation_score(i) for i in xrange(self.n_valid_batches)]
                 this_validation_loss = np.mean(validation_losses)
                 print("    minibatch {}/{}, validation error: {}".format(
                     minibatch_index + 1, self.n_train_batches, this_validation_loss))
+                validation_score_records.append((id_mini_batch, this_validation_loss))
 
                 # if we got the best validation score until now
                 if this_validation_loss >= best_validation_loss:
@@ -182,34 +198,41 @@ class Trainer():
                 if this_validation_loss < best_validation_loss * improvement_threshold:
                     patience += patience_increase
 
-                best_params = self.save_params()
-
                 # save best validation score and iteration number
                 best_validation_loss = this_validation_loss
                 best_iter = id_mini_batch
+                best_params = self.net.export_params()
 
                 # test it on the test set
-                test_losses = [self.test_model(i) for i in xrange(self.n_test_batches)]
+                test_losses = [self.testing_score(i) for i in xrange(self.n_test_batches)]
                 test_score = np.mean(test_losses)
                 print("    minibatch {}/{}, test error of the best model so far: {}".format(
                     minibatch_index + 1, self.n_train_batches, test_score))
+                testing_score_records.append((id_mini_batch, test_score))
 
             print("    epoch {} finished after {} seconds".format(epoch, time.clock() - starting_epoch_time))
             starting_epoch_time = time.clock()
 
         end_time = time.clock()
-        self.load_params(best_params)
+        self.net.import_params(best_params)
         print('Training complete.')
         print('Best validation score of %f obtained at iteration %i with test performance %f' %
               (best_validation_loss, best_iter + 1, test_score))
         print >> sys.stderr, ('The code for file ran for %.2fm' % ((end_time - start_time) / 60.))
 
-    def save_params(self):
-        params = []
-        for p in self.net.params:
-            params.append(p.get_value())
-        return params
+        self.__save_records("t.png", training_score_records, testing_score_records, validation_score_records)
 
-    def load_params(self, params):
-        for p, p_sym in zip(params, self.net.params):
-            p_sym.set_value(p)
+    @staticmethod
+    def __save_records(file_name, training_score_records, testing_score_records, validation_score_records):
+
+        def save_score(score, legend):
+            plt.plot(*zip(*score), label=legend)
+
+        save_score(training_score_records, "training data")
+        save_score(testing_score_records, "testing data")
+        save_score(validation_score_records, "validation data")
+
+        plt.xlabel('Minibatch index')
+        plt.ylabel('Error rate')
+        plt.legend(loc='upper right')
+        plt.savefig('./images/training/' + file_name)

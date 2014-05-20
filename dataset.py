@@ -63,7 +63,7 @@ class Dataset():
         h5file.close()
 
     def write_virtual(self, h5file):
-        raise NotImplementedError
+        pass
 
     def read(self, file_name):
         """
@@ -83,7 +83,7 @@ class Dataset():
         h5file.close()
 
     def read_virtual(self, h5file):
-        raise NotImplementedError
+        pass
 
 
 class DatasetBrainParcellation(Dataset):
@@ -91,7 +91,6 @@ class DatasetBrainParcellation(Dataset):
     Attributes:
         file_list: List of pairs (mri_file, label_file)
         patch_width: Size of the 2D patch
-        n_vx: Number of different voxels in the dataset
         n_patch_per_voxel: There might be several different patches for each voxel
         pick_vx(function): Function to pick voxels
         pick_patch(function): Function to pick patches
@@ -106,7 +105,6 @@ class DatasetBrainParcellation(Dataset):
         self.n_files = None
 
         self.patch_width = None
-        self.n_vx = None
         self.n_patch_per_voxel = None
 
         self.pick_vx = None
@@ -137,94 +135,17 @@ class DatasetBrainParcellation(Dataset):
             print "error source"
 
         self.n_files = len(self.file_list)
-        self.patch_width = config_ini.getint(cat_ini, 'patch_width')
+        self.patch_width = config_ini.getint("pick_tg", 'patch_width')
         self.n_patch_per_voxel = config_ini.getint(cat_ini, 'n_patch_per_voxel')
 
         # Create the objects responsible for picking the voxels
         self.pick_vx = self.create_pick_voxel(config_ini)
-        self.pick_patch = PickPatchParallelOrthogonal(1)
-        self.pick_tg = PickTgCentered()
+        self.pick_patch = self.create_pick_patch(config_ini)
+        self.pick_tg = self.create_pick_target(config_ini)
 
         self.is_perm = config_ini.getboolean(cat_ini, 'perm')
 
         self.__generate_common()
-
-    def __generate_common(self):
-        """
-        This private function is used in all the generation methods
-        """
-        # Create the mri-patch converter
-        conv_mri_patch = ConverterMriPatch(self.patch_width, self.pick_vx, self.pick_patch, self.pick_tg)
-
-        # Extract patches by generating the data in parallel on the CPU cores
-        print '... populate the dataset'
-        
-        def extractPatchesFromFile(i):
-            mri_file, label_file = self.file_list[i]
-            return conv_mri_patch.convert(mri_file, label_file, self.n_out_features)
-
-        # Generation of the data in parallel on the CPU cores
-        res_all = parmap(extractPatchesFromFile, range(self.n_files))
-
-        # Count the number of patches
-        self.n_data = 0
-        for res in res_all:
-            self.n_data += res[0].shape[0]
-            
-        # Initialize the containers
-        self.inputs = np.zeros((self.n_data, self.patch_width**2), dtype=np.float32)
-        self.idx_patch = np.zeros((self.n_data, self.patch_width**2), dtype=int)
-        self.vx = np.zeros((self.n_data, 3), dtype=int)
-        self.outputs = np.zeros((self.n_data, self.n_out_features), dtype=np.float32)
-
-        # Populate the containers
-        idx_writing_1 = 0
-        for res in res_all:
-            idx_writing_2 = idx_writing_1 + res[0].shape[0]
-            s = slice(idx_writing_1, idx_writing_2)
-            self.vx[s], self.inputs[s], self.idx_patch[s], self.outputs[s] = res[0:4]
-            idx_writing_1 = idx_writing_2
-
-        # Permute data
-        if self.is_perm:
-            self.permute_data()
-
-        self.n_data = self.inputs.shape[0]
-
-    def create_pick_voxel(self, config_ini):
-        """
-        Create the objects responsible for picking the voxels
-        """
-
-        where_vx = config_ini.get("pick_voxel", 'where')
-        how_vx = config_ini.get("pick_voxel", 'how')
-        if where_vx == "anywhere":
-            select_region = SelectWholeBrain()
-        elif where_vx == "plane":
-            select_region = SelectPlaneXZ(100)
-        else:
-            print "error in pick_voxel"
-            return
-
-        if how_vx == "all":
-            extract_voxel = ExtractVoxelAll(self.n_patch_per_voxel)
-        else:
-            self.n_vx = config_ini.getint('pick_voxel', 'n_vx')
-
-            # Re-adjust so there is no rounding problem with the number of files and classes
-            divisor = self.n_files * self.n_out_features
-            self.n_vx = int(math.ceil(float(self.n_vx) / divisor) * divisor)
-            n_vx_per_file = self.n_vx / self.n_files
-
-            if how_vx == "random":
-                extract_voxel = ExtractVoxelRandomly(self.n_patch_per_voxel, n_vx_per_file)
-            elif how_vx == "balanced":
-                extract_voxel = ExtractVoxelBalanced(self.n_patch_per_voxel, n_vx_per_file)
-            else:
-                print "error in pick_voxel"
-                return
-
-        return PickVoxel(select_region, extract_voxel)
 
     def generate_from(self, file_list, n_classes, patch_width, is_perm, n_patch_per_voxel, pick_vx, pick_patch, pick_tg):
         print '... generate the dataset'
@@ -245,13 +166,119 @@ class DatasetBrainParcellation(Dataset):
         self.is_perm = is_perm
 
         self.__generate_common()
+        
+    def __generate_common(self):
+        """
+        This private function is used in all the generation methods
+        """
+
+        # Create the mri-patch converter
+        conv_mri_patch = ConverterMriPatch(self.patch_width, self.pick_vx, self.pick_patch, self.pick_tg)
+        
+        def extract_patches_from_file(i):
+            mri_file, label_file = self.file_list[i]
+            return conv_mri_patch.convert(mri_file, label_file, self.n_out_features)
+
+        # Generation of the data in parallel on the CPU cores
+        res_all = parmap(extract_patches_from_file, range(self.n_files))
+
+        # Number of input features
+        self.n_in_features = res_all[0][1].shape[1]
+
+        # Count the number of patches
+        self.n_data = 0
+        for res in res_all:
+            self.n_data += res[0].shape[0]
+            
+        # Initialize the containers
+        self.inputs = np.zeros((self.n_data, self.n_in_features), dtype=np.float32)
+        self.idx_patch = np.zeros((self.n_data, self.n_in_features), dtype=int)
+        self.vx = np.zeros((self.n_data, 3), dtype=int)
+        self.outputs = np.zeros((self.n_data, self.n_out_features), dtype=np.float32)
+
+        # Populate the containers
+        idx_writing_1 = 0
+        for res in res_all:
+            idx_writing_2 = idx_writing_1 + res[0].shape[0]
+            s = slice(idx_writing_1, idx_writing_2)
+            self.vx[s], self.inputs[s], self.idx_patch[s], self.outputs[s] = res[0:4]
+            idx_writing_1 = idx_writing_2
+
+        # Permute data
+        if self.is_perm:
+            self.permute_data()
+
+    def create_pick_voxel(self, config_ini):
+        """
+        Create the objects responsible for picking the voxels
+        """
+
+        where_vx = config_ini.get("pick_voxel", 'where')
+        how_vx = config_ini.get("pick_voxel", 'how')
+        if where_vx == "anywhere":
+            select_region = SelectWholeBrain()
+        elif where_vx == "plane":
+            select_region = SelectPlaneXZ(100)
+        else:
+            print "error in pick_voxel"
+            return
+
+        if how_vx == "all":
+            extract_voxel = ExtractVoxelAll(self.n_patch_per_voxel)
+        else:
+            n_vx = config_ini.getint('pick_voxel', 'n_vx')
+
+            # Re-adjust so there is no rounding problem with the number of files and classes
+            divisor = self.n_files * self.n_out_features
+            n_vx = int(math.ceil(float(n_vx) / divisor) * divisor)
+            n_vx_per_file = n_vx / self.n_files
+
+            if how_vx == "random":
+                extract_voxel = ExtractVoxelRandomly(self.n_patch_per_voxel, n_vx_per_file)
+            elif how_vx == "balanced":
+                extract_voxel = ExtractVoxelBalanced(self.n_patch_per_voxel, n_vx_per_file)
+            else:
+                print "error in pick_voxel"
+                return
+
+        return PickVoxel(select_region, extract_voxel)
+
+    def create_pick_patch(self, config_ini):
+        """
+        Create the objects responsible for picking the patches
+        """
+        how_patch = config_ini.get("pick_patch", 'how')
+        if how_patch == "3D":
+            pick_patch = PickPatch3DSimple()
+        elif how_patch == "2Dortho":
+            axis = config_ini.getint("pick_patch", 'axis')
+            pick_patch = PickPatchParallelOrthogonal(axis)
+        else:
+            print "error in pick_patch"
+            return
+
+        return pick_patch
+
+    def create_pick_target(self, config_ini):
+        """
+        Create the objects responsible for picking the targets
+        """
+        how_tg = config_ini.get("pick_tg", 'how')
+        if how_tg == "center":
+            pick_tg = PickTgCentered()
+        elif how_tg == "proportion":
+            pick_tg = PickTgProportion()
+        else:
+            print "error in pick_tg"
+            return
+
+        return pick_tg
 
     def write_virtual(self, h5file):
 
         h5file.create_dataset("voxels", data=self.vx, dtype='f')
         h5file.create_dataset("idx_patches", data=self.idx_patch, dtype='f')
 
-        h5file.attrs['n_vx'] = self.n_vx
         h5file.attrs['n_patch_per_voxel'] = self.n_patch_per_voxel
         h5file.attrs['patch_width'] = self.patch_width
 
@@ -260,7 +287,6 @@ class DatasetBrainParcellation(Dataset):
         self.vx = h5file["voxels"].value
         self.idx_patch = h5file["idx_patches"].value
 
-        self.n_vx = int(h5file.attrs["n_vx"])
         self.n_patch_per_voxel = int(h5file.attrs["n_patch_per_voxel"])
         self.patch_width = int(h5file.attrs["patch_width"])
 

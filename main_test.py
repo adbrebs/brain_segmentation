@@ -30,7 +30,7 @@ if __name__ == '__main__':
     lab = nibabel.load(file[0][1]).get_data().squeeze()
     mri, lab = crop_image(mri, lab)
     select_region = SelectPlaneXZ(100)
-    extract_voxel = ExtractVoxelRandomly(1,500)
+    extract_voxel = ExtractVoxelAll(1)
     pick_vx = PickVoxel(select_region, extract_voxel)
     pick_patch = PickPatchParallelOrthogonal(1)
     pick_tg = PickTgCentered()

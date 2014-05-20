@@ -147,6 +147,22 @@ class Network():
     def load_parameters_virtual(self, h5file):
         raise NotImplementedError
 
+    def print_characteristics(self):
+        n_parameters = 0
+        for p in self.params:
+            n_parameters += p.get_value().size
+        print "The network has {} parameters".format(n_parameters)
+
+    def export_params(self):
+        params = []
+        for p in self.params:
+            params.append(p.get_value())
+        return params
+
+    def import_params(self, params):
+        for p, p_sym in zip(params, self.params):
+            p_sym.set_value(p)
+
 
 class Network1(Network):
     def __init__(self):
@@ -172,21 +188,18 @@ class Network1(Network):
 class Network2(Network):
     def __init__(self):
         Network.__init__(self)
-        self.patch_width = None
-        self.patch_height = None
+        self.in_width = None
+        self.in_height = None
 
     def init(self, patch_height, patch_width, n_out):
         Network.init_common(self, patch_height*patch_width, n_out)
 
-        self.patch_height = patch_height
-        self.patch_width = patch_width
+        self.in_height = patch_height
+        self.in_width = patch_width
 
         neuron_relu = neurons.NeuronRELU()
 
-        # Construct the first convolutional pooling layer:
-        # filtering reduces the image size to (28-5+1,28-5+1)=(24,24)
-        # maxpooling reduces this further to (24/2,24/2) = (12,12)
-        # 4D output tensor is thus of shape (batch_size,nkerns[0],12,12)
+        # Layer 0
         kernel_height0 = 5
         kernel_width0 = 5
         pool_size_height0 = 2
@@ -197,10 +210,7 @@ class Network2(Network):
                                        filter_shape=(n_kern0, 1, kernel_height0, kernel_width0),
                                        poolsize=(pool_size_height0, pool_size_width0))
 
-        # Construct the second convolutional pooling layer
-        # filtering reduces the image size to (12-5+1,12-5+1)=(8,8)
-        # maxpooling reduces this further to (8/2,8/2) = (4,4)
-        # 4D output tensor is thus of shape (nkerns[0],nkerns[1],4,4)
+        # Layer 1
         filter_map_height1 = (patch_height - kernel_height0 + 1) / pool_size_height0
         filter_map_width1 = (patch_width - kernel_width0 + 1) / pool_size_width0
         kernel_height1 = 5
@@ -213,17 +223,14 @@ class Network2(Network):
                                        filter_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
                                        poolsize=(pool_size_height1, pool_size_width1))
 
-        # the HiddenLayer being fully-connected, it operates on 2D matrices of
-        # shape (batch_size,num_pixels) (i.e matrix of rasterized images).
-        # This will generate a matrix of shape (20,32*4*4) = (20,512)
-        # construct a fully-connected sigmoidal layer
+        # Layer 2
         filter_map_height2 = (filter_map_height1 - kernel_height1 + 1) / pool_size_height1
         filter_map_with2 = (filter_map_width1 - kernel_width1 + 1) / pool_size_width1
         n_in2 = n_kern1 * filter_map_height2 * filter_map_with2
         n_out2 = 500
         layer2 = layer.LayerFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
 
-        # classify the values of the fully-connected sigmoidal layer
+        # Layer 3
         layer3 = layer.LayerFullyConnected(neurons.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
 
         self.layers = [layer0, layer1, layer2, layer3]
@@ -233,10 +240,73 @@ class Network2(Network):
             self.params += l.params
 
     def save_parameters_virtual(self, h5file):
-        h5file.attrs['patch_height'] = self.patch_height
-        h5file.attrs['patch_width'] = self.patch_width
+        h5file.attrs['in_height'] = self.in_height
+        h5file.attrs['in_width'] = self.in_width
 
     def load_parameters_virtual(self, h5file):
-        self.patch_height = int(h5file.attrs["patch_height"])
-        self.patch_width = int(h5file.attrs["patch_width"])
-        self.init(self.patch_height, self.patch_width, self.n_out)
+        self.in_height = int(h5file.attrs["in_height"])
+        self.in_width = int(h5file.attrs["in_width"])
+        self.init(self.in_height, self.in_width, self.n_out)
+
+
+class Network3(Network):
+    def __init__(self):
+        Network.__init__(self)
+        self.in_height = None
+        self.in_width = None
+        self.in_depth = None
+
+    def init(self, patch_height, patch_width, patch_depth, n_out):
+        Network.init_common(self, patch_height*patch_width*patch_depth, n_out)
+
+        self.in_height = patch_height
+        self.in_width = patch_width
+        self.in_depth = patch_depth
+
+        neuron_relu = neurons.NeuronRELU()
+
+        # Layer 0
+        filter_map_0_shape = np.array([patch_height, patch_width, patch_depth], dtype=int)
+        filter_0_shape = np.array([2, 2, 2], dtype=int)
+        pool_0_shape = np.array([2, 2, 2], dtype=int)
+        n_kern0 = 20
+        layer0 = layer.LayerConvPool3D(neuron_relu,
+                                       1, tuple(filter_map_0_shape),
+                                       n_kern0, tuple(filter_0_shape),
+                                       poolsize=tuple(pool_0_shape))
+
+        # Layer 1
+        filter_map_1_shape = (filter_map_0_shape - filter_0_shape + 1) / pool_0_shape
+        filter_1_shape = np.array([2, 2, 2], dtype=int)
+        pool_1_shape = np.array([2, 2, 2], dtype=int)
+        n_kern1 = 50
+        layer1 = layer.LayerConvPool3D(neuron_relu,
+                                       n_kern0, tuple(filter_map_1_shape),
+                                       n_kern1, tuple(filter_1_shape),
+                                       poolsize=tuple(pool_1_shape))
+
+        # Layer 2
+        filter_map_2_shape = (filter_map_1_shape - filter_1_shape + 1) / pool_1_shape
+        n_in2 = n_kern1 * np.prod(filter_map_2_shape)
+        n_out2 = 500
+        layer2 = layer.LayerFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
+
+        # Layer 3
+        layer3 = layer.LayerFullyConnected(neurons.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
+
+        self.layers = [layer0, layer1, layer2, layer3]
+
+        self.params = []
+        for l in self.layers:
+            self.params += l.params
+
+    def save_parameters_virtual(self, h5file):
+        h5file.attrs['in_height'] = self.in_height
+        h5file.attrs['in_width'] = self.in_width
+        h5file.attrs['in_depth'] = self.in_depth
+
+    def load_parameters_virtual(self, h5file):
+        self.in_height = int(h5file.attrs["in_height"])
+        self.in_width = int(h5file.attrs["in_width"])
+        self.in_depth = int(h5file.attrs["in_depth"])
+        self.init(self.in_height, self.in_width, self.in_depth, self.n_out)
