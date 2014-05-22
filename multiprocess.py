@@ -14,6 +14,10 @@ def spawn(f):
 
 
 def parmap(f, X, nprocs=multiprocessing.cpu_count()):
+    """
+    Parallel map that can be used with method functions or lambda functions contrary to the built multiprocessing map
+    or imap functions.
+    """
     q_in = multiprocessing.Queue(1)
     q_out = multiprocessing.Queue()
 

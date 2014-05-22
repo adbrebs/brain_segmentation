@@ -34,6 +34,7 @@ if __name__ == '__main__':
     # net.init(db.patch_width, db.patch_width, db.n_out_features)
     net = nn.Network3()
     net.init(db.patch_width, db.patch_width, db.patch_width, db.n_out_features)
+    print net
 
     ### Train the network
     t = Trainer(training_cf, net, db)

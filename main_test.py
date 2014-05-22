@@ -8,7 +8,7 @@ import nibabel
 
 import nn
 import trainer
-from dataset import ConverterMriPatch, create_img_from_pred, compute_dice
+from dataset import create_img_from_pred, compute_dice
 from pick_voxel import *
 from pick_patch import *
 from pick_target import *
@@ -38,16 +38,6 @@ if __name__ == '__main__':
     dataset.generate_from(file, n_classes, patch_width, True, 1, pick_vx, pick_patch, pick_tg)
     net.scale_dataset(dataset)
 
-    # slice1 = mri[:,:,100]
-    # mri_rot = rotate(mri, 20, axes=(0,1))
-    # slice2 = mri_rot[:,:,100]
-
-    # plt.imshow(slice1)
-    # plt.show()
-    #
-    # plt.imshow(slice2)
-    # plt.show()
-
     ### Predict the patches
     pred1 = net.predict(dataset.inputs)
     pred12 = np.argmax(pred1, axis=1)
@@ -56,6 +46,7 @@ if __name__ == '__main__':
     img_true = lab[:, 100, :]
     img_pred = create_img_from_pred(dataset.vx[:, (0, 2)], pred12, img_true.shape)
 
+    ### Save the brain images
     file_name = "test.png"
     plt.imshow(img_pred)
     plt.savefig('./images/pred_' + file_name)

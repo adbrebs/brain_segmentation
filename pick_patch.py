@@ -146,35 +146,3 @@ class PickPatch3DSimple(PickPatch3D):
             x, y, z = np.meshgrid(v_axis[0], v_axis[1], v_axis[2])
             idx_patch[i] = np.ravel_multi_index((x.ravel(), y.ravel(), z.ravel()), dims)
             patch[i] = mri[x, y, z].ravel()
-
-
-
-        # def pick_virtual(self, patch, idx_patch, vx, mri, label, patch_width):
-        # dims = mri.shape
-        # radius = patch_width / 2
-        #
-        # img = np.zeros((patch_width, patch_width, patch_width))
-        #
-        # def check_lims(ax, voxel):
-        #     padd_inf = 0
-        #     padd_sup = 0
-        #     l_inf = voxel - radius
-        #     if l_inf < 0:
-        #         padd_inf = - l_inf
-        #         l_inf = 0
-        #     l_sup = voxel + radius + 1
-        #     if l_sup > dims[ax]:
-        #         padd_sup = l_sup - dims[ax]
-        #         l_sup = dims[ax]
-        #     return slice(padd_inf, padd_sup), slice(l_inf, l_sup)
-        #
-        #
-        # for i in xrange(idx_patch.shape[0]):
-        #     vx_cur = vx[i]
-        #     s1 = []
-        #     s2 = []
-        #     for ax in range(3):
-        #         res1, res2 = check_lims(ax, vx_cur[ax])
-        #         s1.append(res1)
-        #         s2.append(res2)
-        #

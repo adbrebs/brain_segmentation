@@ -1,7 +1,7 @@
 __author__ = 'adeb'
 
 
-import numpy
+import numpy as np
 
 import theano
 import theano.tensor as T
@@ -16,8 +16,10 @@ class Layer():
     Abstract class defining a layer of neurons.
     """
     def __init__(self, neuron_type):
+        self.name = None
         self.w = None
         self.b = None
+        self.params = None
         self.neuron_type = neuron_type
 
     def forward(self, x, batch_size):
@@ -37,13 +39,26 @@ class Layer():
         self.w.set_value(h5file[name + "/w"].value)
         self.b.set_value(h5file[name + "/b"].value)
 
+    def __str__(self):
+        msg = "[{}] with [{}] \n".format(self.name, self.neuron_type)
+        msg += self.print_virtual()
+        n_parameters = 0
+        for p in self.params:
+            n_parameters += p.get_value().size
+        msg += "Number of parameters: {} \n".format(n_parameters)
+        return msg
+
+    def print_virtual(self):
+        return ""
+
 
 class LayerFullyConnected(Layer):
     """
-    Layer in which each input is connected to all the layer neurones
+    Layer in which each input is connected to all the layer neurons
     """
     def __init__(self, neuron_type, n_in, n_out):
         Layer.__init__(self, neuron_type)
+        self.name = "Fully connected layer"
 
         self.n_in = n_in
         self.n_out = n_out
@@ -56,12 +71,12 @@ class LayerFullyConnected(Layer):
         """
         Initialize the parameters of the layer
         """
-        w_values = numpy.asarray(numpy.random.uniform(
-            low=-numpy.sqrt(6. / (self.n_in + self.n_out)),
-            high=numpy.sqrt(6. / (self.n_in + self.n_out)),
+        w_values = np.asarray(np.random.uniform(
+            low=-np.sqrt(6. / (self.n_in + self.n_out)),
+            high=np.sqrt(6. / (self.n_in + self.n_out)),
             size=(self.n_in, self.n_out)), dtype=theano.config.floatX)
 
-        b_values = 0.1 + numpy.zeros((self.n_out,), dtype=theano.config.floatX)
+        b_values = 0.1 + np.zeros((self.n_out,), dtype=theano.config.floatX)
 
         w = theano.shared(w_values, name='w', borrow=True)
         b = theano.shared(b_values, name='b', borrow=True)
@@ -70,6 +85,9 @@ class LayerFullyConnected(Layer):
 
     def forward(self, x, batch_size):
         return self.neuron_type.activation_function(T.dot(x, self.w) + self.b)
+
+    def print_virtual(self):
+        return "Number of inputs: {} \nNumber of outputs: {}\n".format(self.n_in, self.n_out)
 
 
 class LayerConv2DAbstract(Layer):
@@ -86,6 +104,7 @@ class LayerConv2DAbstract(Layer):
             (number of filters, num input feature maps, filter height, filter width)
         """
         Layer.__init__(self, neuron_type)
+
         self.image_shape = image_shape
         self.filter_shape = filter_shape
 
@@ -94,13 +113,13 @@ class LayerConv2DAbstract(Layer):
         fan_in, fan_out = self.init_bounds_parameters()
 
         # initialize weights with random weights
-        w_bound = numpy.sqrt(6. / (fan_in + fan_out))
-        self.w = theano.shared(numpy.asarray(
-            numpy.random.uniform(low=-w_bound, high=w_bound, size=filter_shape),
+        w_bound = np.sqrt(6. / (fan_in + fan_out))
+        self.w = theano.shared(np.asarray(
+            np.random.uniform(low=-w_bound, high=w_bound, size=filter_shape),
             dtype=theano.config.floatX), borrow=True)
 
         # the bias is a 1D tensor -- one bias per output feature map
-        b_values = numpy.zeros((filter_shape[0],), dtype=theano.config.floatX)
+        b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
         self.b = theano.shared(value=b_values, borrow=True)
 
         self.params = [self.w, self.b]
@@ -124,17 +143,21 @@ class LayerConv2DAbstract(Layer):
     def forward_virtual(self, conv_out):
         raise NotImplementedError
 
+    def print_virtual(self):
+        return "Image shape: {}\n Filter shape: {}\n".format(self.image_shape, self.filter_shape)
+
 
 class LayerConv2D(LayerConv2DAbstract):
     """
-    2D Convolution layer
+    2D convolutional layer
     """
     def __init__(self, neuron_type, image_shape, filter_shape):
         LayerConv2DAbstract.__init__(self, neuron_type, image_shape, filter_shape)
+        self.name = "2D convolutional layer"
 
     def init_bounds_parameters(self):
-        fan_in = numpy.prod(self.filter_shape[1:])
-        fan_out = self.filter_shape[0] * numpy.prod(self.filter_shape[2:])
+        fan_in = np.prod(self.filter_shape[1:])
+        fan_out = self.filter_shape[0] * np.prod(self.filter_shape[2:])
         return fan_in, fan_out
 
     def forward_virtual(self, conv_out):
@@ -143,16 +166,17 @@ class LayerConv2D(LayerConv2DAbstract):
 
 class LayerConvPool2D(LayerConv2DAbstract):
     """
-    Convolution + pooling layer. The reason for not having a separate pooling layer is that the combination of the two
-    layers can be optimized.
+    2D convolutional layer + pooling layer. The reason for not having a separate pooling layer is that the combination
+    of the two layers can be optimized.
     """
     def __init__(self, neuron_type, image_shape, filter_shape, poolsize=(2, 2)):
         self.poolsize = poolsize
         LayerConv2DAbstract.__init__(self, neuron_type, image_shape, filter_shape)
+        self.name = "2D convolutional + pooling layer"
 
     def init_bounds_parameters(self):
-        fan_in = numpy.prod(self.filter_shape[1:])
-        fan_out = (self.filter_shape[0] * numpy.prod(self.filter_shape[2:]) / numpy.prod(self.poolsize))
+        fan_in = np.prod(self.filter_shape[1:])
+        fan_out = (self.filter_shape[0] * np.prod(self.filter_shape[2:]) / np.prod(self.poolsize))
         return fan_in, fan_out
 
     def forward_virtual(self, conv_out):
@@ -163,10 +187,13 @@ class LayerConvPool2D(LayerConv2DAbstract):
 
         return self.neuron_type.activation_function(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x')).flatten(2)
 
+    def print_virtual(self):
+        return LayerConv2DAbstract.print_virtual(self) + "\n Pool size: {}\n".format(self.poolsize)
+
 
 class LayerConvPool3D(Layer):
     """
-    Convolution + pooling layer
+    3D convolutional layer + pooling layer
     """
     def __init__(self, neuron_type, in_channels, in_shape,
                  flt_channels, flt_shape, poolsize):
@@ -179,6 +206,7 @@ class LayerConvPool3D(Layer):
             (number of filters, filter depth, num input feature maps, filter height,filter width)
         """
         Layer.__init__(self, neuron_type)
+        self.name = "3D convolutional + pooling layer"
 
         in_width, in_height, in_depth = in_shape
         flt_depth, flt_height, flt_width = flt_shape
@@ -191,13 +219,13 @@ class LayerConvPool3D(Layer):
         fan_out = flt_channels * flt_width * flt_height * flt_depth
 
         # initialize weights with random weights
-        w_bound = numpy.sqrt(6. / (fan_in + fan_out))
-        self.w = theano.shared(numpy.asarray(
-            numpy.random.uniform(low=-w_bound, high=w_bound, size=filter_shape),
+        w_bound = np.sqrt(6. / (fan_in + fan_out))
+        self.w = theano.shared(np.asarray(
+            np.random.uniform(low=-w_bound, high=w_bound, size=filter_shape),
             dtype=theano.config.floatX), borrow=True)
 
         # the bias is a 1D tensor -- one bias per output feature map
-        b_values = numpy.zeros((filter_shape[0],), dtype=theano.config.floatX)
+        b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
         self.b = theano.shared(value=b_values, borrow=True)
 
         self.params = [self.w, self.b]
@@ -216,4 +244,9 @@ class LayerConvPool3D(Layer):
 
         pooled_out = max_pool_3d(conv_out.dimshuffle([0,2,1,3,4]), self.poolsize, ignore_border=True)
 
-        return self.neuron_type.activation_function(pooled_out.dimshuffle([0,2,1,3,4]) + self.b.dimshuffle('x', 'x', 0, 'x', 'x')).flatten(2)
+        return self.neuron_type.activation_function(pooled_out.dimshuffle([0,2,1,3,4])
+                                                    + self.b.dimshuffle('x', 'x', 0, 'x', 'x')).flatten(2)
+
+    def print_virtual(self):
+        return "Image shape: {} \n Filter shape: {} \n Pool size: {} \n".format(
+            self.image_shape, self.filter_shape, self.poolsize)

@@ -9,7 +9,8 @@ from dataset import DatasetBrainParcellation
 
 class DataBase():
     """
-    Class responsible for splitting, storing and loading on the GPU the training and testing datasets.
+    Class responsible for splitting datasets into training, validating and testing datasets. It also loads them on
+    the GPU.
     """
     def __init__(self):
 

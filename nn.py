@@ -12,7 +12,7 @@ import neurons
 
 
 class Network():
-    """
+    """Abstract class that needs to be inherited to define a specific network.
     Attributes:
         n_in: List of pairs (mri_file, label_file)
         n_out: Number of output classes in the dataset
@@ -147,11 +147,15 @@ class Network():
     def load_parameters_virtual(self, h5file):
         raise NotImplementedError
 
-    def print_characteristics(self):
+    def __str__(self):
         n_parameters = 0
         for p in self.params:
             n_parameters += p.get_value().size
-        print "The network has {} parameters".format(n_parameters)
+        msg = "This network has {} inputs, {} outputs and {} parameters \n".format(self.n_in, self.n_out, n_parameters)
+        for i, l in enumerate(self.layers):
+            msg += "------- Layer {} ------- \n".format(i)
+            msg += l.__str__()
+        return msg
 
     def export_params(self):
         params = []

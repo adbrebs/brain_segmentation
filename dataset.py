@@ -19,8 +19,8 @@ class Dataset():
     Create, store, save, load a dataset.
 
     Attributes:
-        inputs (2D array):
-        outputs (2D array):
+        inputs (2D array): rows represent datapoints and columns represent features
+        outputs (2D array): if known, corresponding outputs of the inputs
         n_out_features (int): number of output features
         n_data (int): number of datapoints
         is_perm (boolean): indicates if the dataset is shuffled or not
@@ -36,6 +36,9 @@ class Dataset():
         self.is_perm = None
 
     def permute_data(self):
+        """
+        Shuffle the dataset.
+        """
         perm = np.random.permutation(self.n_data)
         self.inputs = self.inputs[perm]
         self.outputs = self.outputs[perm]
@@ -88,6 +91,7 @@ class Dataset():
 
 class DatasetBrainParcellation(Dataset):
     """
+    Specialized dataset class for the brain parcellation data.
     Attributes:
         file_list: List of pairs (mri_file, label_file)
         patch_width: Size of the 2D patch
@@ -147,7 +151,11 @@ class DatasetBrainParcellation(Dataset):
 
         self.__generate_common()
 
-    def generate_from(self, file_list, n_classes, patch_width, is_perm, n_patch_per_voxel, pick_vx, pick_patch, pick_tg):
+    def generate_from(self, file_list, n_classes, patch_width, is_perm, n_patch_per_voxel,
+                      pick_vx, pick_patch, pick_tg):
+        """
+        Generate a new dataset from the function arguments.
+        """
         print '... generate the dataset'
         cat_ini = 'generate_data'
 
@@ -210,9 +218,8 @@ class DatasetBrainParcellation(Dataset):
 
     def create_pick_voxel(self, config_ini):
         """
-        Create the objects responsible for picking the voxels
+        Factory function to create the objects responsible for picking the voxels
         """
-
         where_vx = config_ini.get("pick_voxel", 'where')
         how_vx = config_ini.get("pick_voxel", 'how')
         if where_vx == "anywhere":
@@ -243,9 +250,10 @@ class DatasetBrainParcellation(Dataset):
 
         return PickVoxel(select_region, extract_voxel)
 
+    @staticmethod
     def create_pick_patch(self, config_ini):
         """
-        Create the objects responsible for picking the patches
+        Factory function to create the objects responsible for picking the patches
         """
         how_patch = config_ini.get("pick_patch", 'how')
         if how_patch == "3D":
@@ -259,9 +267,10 @@ class DatasetBrainParcellation(Dataset):
 
         return pick_patch
 
+    @staticmethod
     def create_pick_target(self, config_ini):
         """
-        Create the objects responsible for picking the targets
+        Factory function to the objects responsible for picking the targets
         """
         how_tg = config_ini.get("pick_tg", 'how')
         if how_tg == "center":
@@ -291,20 +300,6 @@ class DatasetBrainParcellation(Dataset):
         self.patch_width = int(h5file.attrs["patch_width"])
 
 
-class ExtractPatchesFromFile(object):
-    """
-    Class used for parallelizing the extraction of patches in the different files
-    """
-    def __init__(self, file_list, n_classes, conv_mri_patch):
-        self.file_list = file_list
-        self.n_classes = n_classes
-        self.conv_mri_patch = conv_mri_patch
-
-    def __call__(self, i):
-        mri_file, label_file = self.file_list[i]
-        return self.conv_mri_patch.convert(mri_file, label_file, self.n_classes)
-
-
 class ConverterMriPatch():
     """
     Class that manages the convertion of an mri file into a dataset of patches
@@ -330,6 +325,9 @@ class ConverterMriPatch():
 
 
 def list_miccai_files():
+    """
+    List the the pairs (mri_file_name, label_file_name) of the miccai data.
+    """
     mri_files = glob.glob("./data/miccai/mri/*.nii")
     n_files = len(mri_files)
     label_path = "./data/miccai/label/"
@@ -391,6 +389,10 @@ def create_img_from_pred(vx, pred, shape):
 
 
 def analyse_data(targets):
+    """
+    Compute various statistics about targets.
+    """
+
     # Number of classes
     targets_scalar = np.argmax(targets, axis=1)
     classes = np.unique(targets_scalar)
@@ -408,8 +410,10 @@ def analyse_data(targets):
 
 
 def compute_dice(img_pred, img_true, n_classes_max):
+    """
+    Compute the DICE score between two segmentations
+    """
     classes = np.unique(img_true)
-    n_classes = len(classes)
     dices = np.zeros((n_classes_max, 1))
 
     for c in classes:
