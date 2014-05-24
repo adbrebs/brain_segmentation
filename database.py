@@ -69,11 +69,19 @@ class DataBaseBrainParcellation(DataBase):
 
         print '... loading data ' + training_data_file + ' and ' + testing_data_file
 
-        # Load training data
+        # Load training and testing data
         training_data = DatasetBrainParcellation()
         training_data.read(training_data_file)
+        testing_data = DatasetBrainParcellation()
+        testing_data.read(testing_data_file)
+        if training_data.n_in_features != testing_data.n_in_features:
+            raise Exception("The training and testing datasets do not have the same number of features")
+        if training_data.n_out_features != testing_data.n_out_features:
+            raise Exception("The training and testing datasets do not have the same number of outputs")
+
         self.n_out_features = training_data.n_out_features
         self.patch_width = training_data.patch_width
+        self.n_patch_per_voxel_testing = testing_data.n_patch_per_voxel
         n_data = training_data.n_data
 
         # Create a validation set
@@ -83,10 +91,7 @@ class DataBaseBrainParcellation(DataBase):
         valid_x = training_data.inputs[validatioin_split:n_data, :]
         valid_y = training_data.outputs[validatioin_split:n_data, :]
 
-        # Load testing data
-        testing_data = DatasetBrainParcellation()
-        testing_data.read(testing_data_file)
-        self.n_patch_per_voxel_testing = testing_data.n_patch_per_voxel
+        # Testing data
         test_x = testing_data.inputs
         test_y = testing_data.outputs
 

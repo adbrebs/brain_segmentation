@@ -9,7 +9,7 @@ from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv, conv3d2d
 
 from max_pool_3d import max_pool_3d
-
+from dataset import get_h5file_data
 
 class Layer():
     """
@@ -36,8 +36,8 @@ class Layer():
         h5file.create_dataset(name + "/b", data=self.b.get_value(), dtype='f')
 
     def load_parameters(self, h5file, name):
-        self.w.set_value(h5file[name + "/w"].value)
-        self.b.set_value(h5file[name + "/b"].value)
+        self.w.set_value(get_h5file_data(h5file, name + "/w"))
+        self.b.set_value(get_h5file_data(h5file, name + "/b"))
 
     def __str__(self):
         msg = "[{}] with [{}] \n".format(self.name, self.neuron_type)

@@ -72,7 +72,7 @@ class Dataset():
         """
         load the dataset from a hdf5 file
         """
-        h5file = h5py.File("./data/" + file_name, "r")
+        h5file = open_h5file("./data/" + file_name)
         self.inputs = h5file["inputs"].value
         self.outputs = h5file["outputs"].value
 
@@ -426,3 +426,29 @@ def compute_dice(img_pred, img_true, n_classes_max):
 
     return dices
 
+
+def get_h5file_attribute(h5file, attr_key):
+    try:
+        attr_value = h5file.attrs[attr_key]
+    except KeyError:
+        raise Exception("Attribute {} is not present in {}".format(attr_key, h5file.filename))
+
+    return attr_value
+
+
+def get_h5file_data(h5file, data_key):
+    try:
+        data_value = h5file[data_key].value
+    except KeyError:
+        raise Exception("Data {} is not present in {}".format(data_key, h5file.filename))
+
+    return data_value
+
+
+def open_h5file(file_path):
+    try:
+        h5file = h5py.File(file_path, "r")
+    except IOError:
+        raise Exception("{} does not exist".format(file_path))
+
+    return h5file

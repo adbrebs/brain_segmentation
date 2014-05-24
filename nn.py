@@ -9,6 +9,7 @@ from theano import tensor as T
 
 import layer
 import neurons
+from dataset import open_h5file, get_h5file_attribute, get_h5file_data
 
 
 class Network(object):
@@ -135,20 +136,18 @@ class Network(object):
     def save_parameters_virtual(self, h5file):
         raise NotImplementedError
 
-    def load_parameters(self, file_name):
+    def load_parameters(self, h5file):
         """
         Load parameters (weights, biases) of the network from an hdf5 file
         """
-        f = h5py.File("./networks/" + file_name, "r")
-        self.n_in = int(f.attrs["n_in"])
-        self.n_out = int(f.attrs["n_out"])
-        self.load_parameters_virtual(f)
+        self.n_in = int(get_h5file_attribute(h5file, "n_in"))
+        self.n_out = int(get_h5file_attribute(h5file, "n_out"))
+        self.load_parameters_virtual(h5file)
         for i, l in enumerate(self.layers):
-            l.load_parameters(f, "layer" + str(i))
+            l.load_parameters(h5file, "layer" + str(i))
 
-        self.scalar_mean = f["scalar_mean"].value
-        self.scalar_std = f["scalar_std"].value
-        f.close()
+        self.scalar_mean = get_h5file_data(h5file, "scalar_mean")
+        self.scalar_std = get_h5file_data(h5file, "scalar_std")
 
     def load_parameters_virtual(self, h5file):
         raise NotImplementedError
@@ -328,14 +327,16 @@ def load_network(net_file):
     """
     Factory function to create a network from a network file
     """
-    h5file = h5py.File("./networks/" + net_file, "r")
-    network_type_str = h5file.attrs["network_type"]
-    h5file.close()
+    h5file = open_h5file("./networks/" + net_file)
 
-    # Subclasses of Network
-    network_type = [cls for cls in Network.__subclasses__() if cls.__name__ == network_type_str][0]
+    network_type_str = get_h5file_attribute(h5file, "network_type")
+    try:
+        network_type = [cls for cls in Network.__subclasses__() if cls.__name__ == network_type_str][0]
+    except IndexError:
+        raise Exception("The network is not defined")
 
     net = network_type()
-    net.load_parameters(net_file)
+    net.load_parameters(h5file)
+    h5file.close()
 
     return net
