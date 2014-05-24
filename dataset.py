@@ -144,7 +144,7 @@ class DatasetBrainParcellation(Dataset):
 
         # Create the objects responsible for picking the voxels
         self.pick_vx = self.create_pick_voxel(config_ini)
-        self.pick_patch = self.create_pick_patch(config_ini)
+        self.pick_patch = PickXYZ()
         self.pick_tg = self.create_pick_target(config_ini)
 
         self.is_perm = config_ini.getboolean(cat_ini, 'perm')
@@ -251,7 +251,7 @@ class DatasetBrainParcellation(Dataset):
         return PickVoxel(select_region, extract_voxel)
 
     @staticmethod
-    def create_pick_patch(self, config_ini):
+    def create_pick_patch(config_ini):
         """
         Factory function to create the objects responsible for picking the patches
         """
@@ -268,7 +268,7 @@ class DatasetBrainParcellation(Dataset):
         return pick_patch
 
     @staticmethod
-    def create_pick_target(self, config_ini):
+    def create_pick_target(config_ini):
         """
         Factory function to the objects responsible for picking the targets
         """
@@ -413,13 +413,15 @@ def compute_dice(img_pred, img_true, n_classes_max):
     """
     Compute the DICE score between two segmentations
     """
-    classes = np.unique(img_true)
+    classes = np.unique(img_pred)
+    if classes[0] == 0:
+        classes = classes[1:]
     dices = np.zeros((n_classes_max, 1))
 
     for c in classes:
         class_pred = img_pred == c
         class_true = img_true == c
-        class_common = class_pred[class_true]
+        class_common = class_true[class_pred]
         dices[c] = 2 * np.sum(class_common, dtype=float) / (np.sum(class_pred) + np.sum(class_true))
 
     return dices

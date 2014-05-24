@@ -16,6 +16,16 @@ class PickPatch():
         raise NotImplementedError
 
 
+class PickXYZ(PickPatch):
+    def __init__(self):
+        PickPatch.__init__(self)
+
+    def pick(self, vx, mri, label, patch_width):
+        idx_patch = 0
+        patch = vx
+        return patch, idx_patch
+
+
 class PickPatch2D(PickPatch):
     def __init__(self):
         PickPatch.__init__(self)

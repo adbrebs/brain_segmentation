@@ -6,13 +6,13 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import nibabel
 
-import nn
+from nn import load_network
 import trainer
 from dataset import create_img_from_pred, compute_dice
 from pick_voxel import *
 from pick_patch import *
 from pick_target import *
-from dataset import DatasetBrainParcellation, crop_image
+from dataset import DatasetBrainParcellation, crop_image, analyse_data
 
 
 if __name__ == '__main__':
@@ -21,8 +21,7 @@ if __name__ == '__main__':
     n_classes = 139
 
     ### Load the network
-    net = nn.Network2()
-    net.load_parameters("net4.net")
+    net = load_network("net4.net")
 
     ### Create the patches
     file = [('./data/miccai/mri/1000.nii', './data/miccai/label/1000.nii')]
@@ -32,10 +31,11 @@ if __name__ == '__main__':
     select_region = SelectPlaneXZ(100)
     extract_voxel = ExtractVoxelAll(1)
     pick_vx = PickVoxel(select_region, extract_voxel)
-    pick_patch = PickPatchParallelOrthogonal(1)
+    pick_patch = PickXYZ()
     pick_tg = PickTgCentered()
     dataset = DatasetBrainParcellation()
     dataset.generate_from(file, n_classes, patch_width, True, 1, pick_vx, pick_patch, pick_tg)
+    analyse_data(dataset.outputs)
     net.scale_dataset(dataset)
 
     ### Predict the patches

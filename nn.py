@@ -11,7 +11,7 @@ import layer
 import neurons
 
 
-class Network():
+class Network(object):
     """Abstract class that needs to be inherited to define a specific network.
     Attributes:
         n_in: List of pairs (mri_file, label_file)
@@ -95,6 +95,11 @@ class Network():
         self.scalar_mean = np.mean(data, axis=0)
         self.scalar_std = np.std(data, axis=0)
 
+        # If ever one feature has the same value for all datapoints, the std will be zero and it will lead to some
+        # divisions by zero. Therefore we set it to 1 in this case.
+
+        self.scalar_std[self.scalar_std == 0] = 1
+
     def create_scaling_from_raw_database(self, ds):
         self.create_scaling_from_raw_data(ds.train_x.get_value(borrow=True))
 
@@ -117,6 +122,7 @@ class Network():
         Save parameters (weights, biases) of the network in an hdf5 file
         """
         f = h5py.File("./networks/" + file_name, "w")
+        f.attrs['network_type'] = self.__class__.__name__
         f.attrs['n_in'] = self.n_in
         f.attrs['n_out'] = self.n_out
         self.save_parameters_virtual(f)
@@ -175,8 +181,10 @@ class Network1(Network):
     def init(self, n_in, n_out):
         Network.init_common(self, n_in, n_out)
 
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronRELU(), n_in, 10))
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 10, n_out))
+        neuron_type = neurons.NeuronRELU()
+        self.layers.append(layer.LayerFullyConnected(neuron_type, n_in, 20))
+        self.layers.append(layer.LayerFullyConnected(neuron_type, 20, 20))
+        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 20, n_out))
 
         self.params = []
         for l in self.layers:
@@ -314,3 +322,20 @@ class Network3(Network):
         self.in_width = int(h5file.attrs["in_width"])
         self.in_depth = int(h5file.attrs["in_depth"])
         self.init(self.in_height, self.in_width, self.in_depth, self.n_out)
+
+
+def load_network(net_file):
+    """
+    Factory function to create a network from a network file
+    """
+    h5file = h5py.File("./networks/" + net_file, "r")
+    network_type_str = h5file.attrs["network_type"]
+    h5file.close()
+
+    # Subclasses of Network
+    network_type = [cls for cls in Network.__subclasses__() if cls.__name__ == network_type_str][0]
+
+    net = network_type()
+    net.load_parameters(net_file)
+
+    return net

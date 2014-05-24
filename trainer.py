@@ -27,6 +27,7 @@ class Trainer():
             net.create_scaling_from_raw_database(ds)
             net.scale_database(ds)
 
+        self.patience_increase = config.getint('training', 'patience_increase')
         self.batch_size = config.getint('training', 'batch_size')
         self.learning_rate = config.getfloat('training', 'learning_rate')
         self.n_epochs = config.getint('training', 'n_epochs')
@@ -137,7 +138,6 @@ class Trainer():
 
         # early-stopping parameters
         patience = 10 * self.n_train_batches  # look as this many minibatches regardless
-        patience_increase = 3 * self.n_train_batches  # wait this much longer when a new best is found
         improvement_threshold = 0.99  # a relative improvement of this much is considered significant
         validation_frequency = min(self.n_train_batches, patience / 2)
 
@@ -196,7 +196,7 @@ class Trainer():
 
                 #improve patience if loss improvement is good enough
                 if this_validation_loss < best_validation_loss * improvement_threshold:
-                    patience += patience_increase
+                    patience += self.patience_increase
 
                 # save best validation score and iteration number
                 best_validation_loss = this_validation_loss
