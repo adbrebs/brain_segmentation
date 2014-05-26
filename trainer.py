@@ -12,6 +12,7 @@ import theano
 import theano.tensor as T
 
 from dataset import analyse_data
+import learning_update
 
 
 class Trainer():
@@ -28,6 +29,7 @@ class Trainer():
             net.scale_database(ds)
 
         self.patience_increase = config.getint('training', 'patience_increase')
+        self.improvement_threshold = config.getfloat('training', 'improvement_threshold')
         self.batch_size = config.getint('training', 'batch_size')
         self.learning_rate = config.getfloat('training', 'learning_rate')
         self.n_epochs = config.getint('training', 'n_epochs')
@@ -47,11 +49,11 @@ class Trainer():
 
         # Compute gradients
         params = net.params
-        self.grads = T.grad(cost, params)
+        grads = T.grad(cost, params)
 
-        updates = []
-        for param_i, grad_i in zip(params, self.grads):
-            updates.append((param_i, param_i - self.learning_rate * grad_i))
+        # Compute updates
+        lr_update = learning_update.LearningUpdateGDMomentum(self.learning_rate, 0.9)
+        updates = lr_update.compute_updates(params, grads)
 
         idx_batch = T.lscalar()
         id1 = idx_batch * self.batch_size
@@ -138,7 +140,8 @@ class Trainer():
 
         # early-stopping parameters
         patience = 10 * self.n_train_batches  # look as this many minibatches regardless
-        improvement_threshold = 0.99  # a relative improvement of this much is considered significant
+        patience_increase = self.patience_increase * self.n_train_batches
+        improvement_threshold = self.improvement_threshold
         validation_frequency = min(self.n_train_batches, patience / 2)
 
         best_validation_loss = np.inf
@@ -196,7 +199,7 @@ class Trainer():
 
                 #improve patience if loss improvement is good enough
                 if this_validation_loss < best_validation_loss * improvement_threshold:
-                    patience += self.patience_increase
+                    patience = id_mini_batch + patience_increase
 
                 # save best validation score and iteration number
                 best_validation_loss = this_validation_loss

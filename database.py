@@ -4,6 +4,7 @@ import numpy as np
 
 import theano
 
+from utilities import share
 from dataset import DatasetBrainParcellation
 
 
@@ -36,16 +37,12 @@ class DataBase():
         """
         Store the data in shared variables
         """
-        def share_data_object(data, borrow=True):
-            shared_data = theano.shared(np.asarray(data, dtype=theano.config.floatX), borrow=borrow)
-            return shared_data
-
-        self.test_x = share_data_object(test_x)
-        self.test_y = share_data_object(test_y)
-        self.valid_x = share_data_object(valid_x)
-        self.valid_y = share_data_object(valid_y)
-        self.train_x = share_data_object(train_x)
-        self.train_y = share_data_object(train_y)
+        self.test_x = share(test_x)
+        self.test_y = share(test_y)
+        self.valid_x = share(valid_x)
+        self.valid_y = share(valid_y)
+        self.train_x = share(train_x)
+        self.train_y = share(train_y)
 
         self.n_train, self.n_in_features = self.train_x.get_value(borrow=True).shape
         self.n_valid = self.valid_x.get_value(borrow=True).shape[0]

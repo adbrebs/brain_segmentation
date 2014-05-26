@@ -181,9 +181,9 @@ class Network1(Network):
         Network.init_common(self, n_in, n_out)
 
         neuron_type = neurons.NeuronRELU()
-        self.layers.append(layer.LayerFullyConnected(neuron_type, n_in, 20))
-        self.layers.append(layer.LayerFullyConnected(neuron_type, 20, 20))
-        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 20, n_out))
+        self.layers.append(layer.LayerFullyConnected(neuron_type, n_in, 10))
+        self.layers.append(layer.LayerFullyConnected(neuron_type, 10, 10))
+        self.layers.append(layer.LayerFullyConnected(neurons.NeuronSoftmax(), 10, n_out))
 
         self.params = []
         for l in self.layers:

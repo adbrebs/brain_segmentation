@@ -8,8 +8,10 @@ import theano.tensor as T
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv, conv3d2d
 
+from utilities import share
 from max_pool_3d import max_pool_3d
 from dataset import get_h5file_data
+
 
 class Layer():
     """
@@ -78,8 +80,8 @@ class LayerFullyConnected(Layer):
 
         b_values = 0.1 + np.zeros((self.n_out,), dtype=theano.config.floatX)
 
-        w = theano.shared(w_values, name='w', borrow=True)
-        b = theano.shared(b_values, name='b', borrow=True)
+        w = share(w_values, 'w')
+        b = share(b_values, 'b')
 
         return w, b
 
@@ -114,13 +116,13 @@ class LayerConv2DAbstract(Layer):
 
         # initialize weights with random weights
         w_bound = np.sqrt(6. / (fan_in + fan_out))
-        self.w = theano.shared(np.asarray(
+        self.w = share(np.asarray(
             np.random.uniform(low=-w_bound, high=w_bound, size=filter_shape),
-            dtype=theano.config.floatX), borrow=True)
+            dtype=theano.config.floatX), "w")
 
         # the bias is a 1D tensor -- one bias per output feature map
         b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
-        self.b = theano.shared(value=b_values, borrow=True)
+        self.b = share(b_values, "b")
 
         self.params = [self.w, self.b]
 
@@ -220,13 +222,13 @@ class LayerConvPool3D(Layer):
 
         # initialize weights with random weights
         w_bound = np.sqrt(6. / (fan_in + fan_out))
-        self.w = theano.shared(np.asarray(
+        self.w = share(np.asarray(
             np.random.uniform(low=-w_bound, high=w_bound, size=filter_shape),
-            dtype=theano.config.floatX), borrow=True)
+            dtype=theano.config.floatX), "w")
 
         # the bias is a 1D tensor -- one bias per output feature map
         b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
-        self.b = theano.shared(value=b_values, borrow=True)
+        self.b = share(b_values, "b")
 
         self.params = [self.w, self.b]
 
