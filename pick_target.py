@@ -3,6 +3,22 @@ __author__ = 'adeb'
 import numpy as np
 
 
+def create_pick_target(config_ini):
+    """
+    Factory function to the objects responsible for picking the targets
+    """
+    how_tg = config_ini.get("pick_tg", 'how')
+    if how_tg == "center":
+        pick_tg = PickTgCentered()
+    elif how_tg == "proportion":
+        pick_tg = PickTgProportion()
+    else:
+        print "error in pick_tg"
+        return
+
+    return pick_tg
+
+
 class PickTarget():
     """
     Manage the labelling of the patches

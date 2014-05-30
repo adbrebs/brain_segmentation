@@ -3,12 +3,14 @@ __author__ = 'adeb'
 import numpy as np
 
 import theano
-import theano.tensor as T
 
 from utilities import share
 
 
 class LearningUpdate():
+    """
+    Abstract class defining the update in a Trainer object.
+    """
     def __init__(self):
         pass
 
@@ -17,6 +19,9 @@ class LearningUpdate():
 
 
 class LearningUpdateGD(LearningUpdate):
+    """
+    Gradient descent (GD) update.
+    """
     def __init__(self, learning_rate):
         LearningUpdate.__init__(self)
         self.learning_rate = share(learning_rate, "learning_rate")
@@ -29,6 +34,9 @@ class LearningUpdateGD(LearningUpdate):
 
 
 class LearningUpdateGDMomentum(LearningUpdate):
+    """
+    GD + momentum.
+    """
     def __init__(self, learning_rate, momentum):
         LearningUpdate.__init__(self)
         self.learning_rate = share(learning_rate, "learning_rate")

@@ -7,9 +7,10 @@ import numpy as np
 import theano
 from theano import tensor as T
 
+from utilities import get_h5file_attribute, get_h5file_data
 import layer
 import neurons
-from dataset import open_h5file, get_h5file_attribute, get_h5file_data
+from dataset import open_h5file
 
 
 class Network(object):
@@ -53,7 +54,8 @@ class Network(object):
         return y
 
     def generate_testing_function(self, batch_size):
-        """Generate a C-compiled function that can be used to compute the output of the network from an input batch
+        """
+        Generate a C-compiled function that can be used to compute the output of the network from an input batch
         Args:
             batch_size (int): the input of the returned function will be a batch of batch_size elements
         Returns:
@@ -63,16 +65,17 @@ class Network(object):
         y_pred = self.forward(x, batch_size)  # Output of the network
         return theano.function([x], y_pred)
 
-    def predict(self, patches):
-        """Return the outputs of the patches
-        Args:
-            patches (2D array): dataset in which rows are datapoints
-        Returns:
-            pred (2D array): outputs of the network for the given patches
+    def predict(self, inputs):
         """
-        n_patches = patches.shape[0]
+        User-friendly function to return the outputs of provided inputs without worrying about batch_size.
+        Args:
+            inputs (2D array): dataset in which rows are datapoints
+        Returns:
+            pred (2D array): outputs of the network for the given inputs
+        """
+        n_patches = inputs.shape[0]
         pred = np.zeros((n_patches, self.n_out), dtype=np.float32)
-        batch_size = min(200, n_patches)
+        batch_size = min(100000, n_patches)  # The limit should be what the GPU memory can support (or the RAM)
         pred_fun = self.generate_testing_function(batch_size)
 
         n_batches = n_patches / batch_size
@@ -80,15 +83,15 @@ class Network(object):
 
         print "--------------------"
         for b in xrange(n_batches):
-            sys.stdout.write("\rPrediction: %d%%" %((100*b)/n_batches))
+            sys.stdout.write("\r        Prediction: {}%".format(100*b/n_batches))
             sys.stdout.flush()
             id0 = b*batch_size
             id1 = id0 + batch_size
-            pred[id0:id1] = pred_fun(patches[id0:id1])
+            pred[id0:id1] = pred_fun(inputs[id0:id1])
 
         if n_rest > 0:
             pred_fun_res = self.generate_testing_function(n_rest)
-            pred[n_batches*batch_size:] = pred_fun_res(patches[n_batches*batch_size:])
+            pred[n_batches*batch_size:] = pred_fun_res(inputs[n_batches*batch_size:])
 
         return pred
 
@@ -98,20 +101,19 @@ class Network(object):
 
         # If ever one feature has the same value for all datapoints, the std will be zero and it will lead to some
         # divisions by zero. Therefore we set it to 1 in this case.
-
         self.scalar_std[self.scalar_std == 0] = 1
 
     def create_scaling_from_raw_database(self, ds):
-        self.create_scaling_from_raw_data(ds.train_x.get_value(borrow=True))
+        self.create_scaling_from_raw_data(ds.train_in.get_value(borrow=True))
 
     def scale_dataset(self, dataset):
         dataset.inputs -= self.scalar_mean
         dataset.inputs /= self.scalar_std
 
     def scale_database(self, database):
-        database.train_x.set_value(self.scale_raw_data(database.train_x.get_value(borrow=True)))
-        database.valid_x.set_value(self.scale_raw_data(database.valid_x.get_value(borrow=True)))
-        database.test_x.set_value(self.scale_raw_data(database.test_x.get_value(borrow=True)))
+        database.train_in.set_value(self.scale_raw_data(database.train_in.get_value(borrow=True)))
+        database.valid_in.set_value(self.scale_raw_data(database.valid_in.get_value(borrow=True)))
+        database.test_in.set_value(self.scale_raw_data(database.test_in.get_value(borrow=True)))
 
     def scale_raw_data(self, data):
         data -= self.scalar_mean
@@ -163,12 +165,18 @@ class Network(object):
         return msg
 
     def export_params(self):
+        """
+        Return the real value of Theano shared variables params.
+        """
         params = []
         for p in self.params:
             params.append(p.get_value())
         return params
 
     def import_params(self, params):
+        """
+        Update Theano shared variable self.params with numpy variable params.
+        """
         for p, p_sym in zip(params, self.params):
             p_sym.set_value(p)
 
@@ -321,6 +329,70 @@ class Network3(Network):
         self.in_width = int(h5file.attrs["in_width"])
         self.in_depth = int(h5file.attrs["in_depth"])
         self.init(self.in_height, self.in_width, self.in_depth, self.n_out)
+
+
+class NetworkUltimate(Network):
+    def __init__(self):
+        Network.__init__(self)
+        self.in_width = None
+        self.in_height = None
+
+    def init(self, patch_height, patch_width, n_out):
+        Network.init_common(self, 3 * patch_height*patch_width, n_out)
+
+        self.in_height = patch_height
+        self.in_width = patch_width
+
+        neuron_relu = neurons.NeuronRELU()
+
+        # Layer 0
+        kernel_height0 = 5
+        kernel_width0 = 5
+        pool_size_height0 = 2
+        pool_size_width0 = 2
+        n_kern0 = 20
+        layer0 = layer.LayerConvPool2D(neuron_relu,
+                                       image_shape=(1, patch_height, patch_width),
+                                       filter_shape=(n_kern0, 1, kernel_height0, kernel_width0),
+                                       poolsize=(pool_size_height0, pool_size_width0))
+
+        # Layer 1
+        filter_map_height1 = (patch_height - kernel_height0 + 1) / pool_size_height0
+        filter_map_width1 = (patch_width - kernel_width0 + 1) / pool_size_width0
+        kernel_height1 = 5
+        kernel_width1 = 5
+        pool_size_height1 = 2
+        pool_size_width1 = 2
+        n_kern1 = 50
+        layer1 = layer.LayerConvPool2D(neuron_relu,
+                                       image_shape=(n_kern0, filter_map_height1, filter_map_width1),
+                                       filter_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
+                                       poolsize=(pool_size_height1, pool_size_width1))
+
+        # Layer 2
+        filter_map_height2 = (filter_map_height1 - kernel_height1 + 1) / pool_size_height1
+        filter_map_with2 = (filter_map_width1 - kernel_width1 + 1) / pool_size_width1
+        n_in2 = n_kern1 * filter_map_height2 * filter_map_with2
+        n_out2 = 500
+        layer2 = layer.LayerFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
+
+        # Layer 3
+        layer3 = layer.LayerFullyConnected(neurons.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
+
+        self.layers = [layer0, layer1, layer2, layer3]
+
+        self.params = []
+        for l in self.layers:
+            self.params += l.params
+
+    def save_parameters_virtual(self, h5file):
+        h5file.attrs['in_height'] = self.in_height
+        h5file.attrs['in_width'] = self.in_width
+
+    def load_parameters_virtual(self, h5file):
+        self.in_height = int(h5file.attrs["in_height"])
+        self.in_width = int(h5file.attrs["in_width"])
+        self.init(self.in_height, self.in_width, self.n_out)
 
 
 def load_network(net_file):

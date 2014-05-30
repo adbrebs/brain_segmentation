@@ -1,18 +1,105 @@
 __author__ = 'adeb'
 
-
+import time
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import nibabel
 
-from nn import load_network
+from utilities import create_img_from_pred, compute_dice
+from network import load_network
 import trainer
-from dataset import create_img_from_pred, compute_dice
-from pick_voxel import *
 from pick_patch import *
 from pick_target import *
-from dataset import DatasetBrainParcellation, crop_image, analyse_data
+from data_generator import list_miccai_files, crop_image
+
+
+def evaluate_network_on_dataset(net, pick_patch, pick_tg, n_classes):
+    file_list = list_miccai_files("2")
+    dices = 0
+    for file in file_list:
+        dices += evaluate_network_on_brain(net, file[0], file[1], pick_patch, pick_tg, n_classes)
+
+
+def evaluate_network_on_brain(net, mri_file, label_file, pick_patch, pick_tg, n_classes):
+
+    print "Evaluating file {}".format(mri_file)
+    start_time = time.clock()
+
+    # Load the mri data
+    mri = nibabel.load(mri_file).get_data().squeeze()
+    lab = nibabel.load(label_file).get_data().squeeze()
+    mri, lab = crop_image(mri, lab)
+
+    is_scan_finished = False
+    ls_vx = []
+    ls_pred = []
+    batch_size = 100000
+    pred_function = net.generate_testing_function(batch_size)
+    idx_brain = lab.ravel().nonzero()[0]
+    n_vx = len(idx_brain)
+    cur_idx = 0
+    while not is_scan_finished:
+        next_idx = cur_idx + batch_size
+        print "\r     voxels [{} - {}] / {}".format(cur_idx, next_idx, n_vx)
+
+        if next_idx >= len(idx_brain):
+            vx_idx = idx_brain[cur_idx:]
+            is_scan_finished = True
+            pred_function = net.generate_testing_function(len(idx_brain) - cur_idx)
+        else:
+            vx_idx = idx_brain[cur_idx: next_idx]
+            cur_idx = next_idx
+
+        vx = np.asarray(np.unravel_index(vx_idx, mri.shape), dtype=int).T
+        patch, idx_patch = pick_patch.pick(vx, mri, lab)
+        tg = pick_tg.pick(vx, idx_patch, n_classes, mri, lab)
+
+        net.scale_raw_data(patch)
+
+        ### Predict the patches
+        pred_raw = pred_function(patch)
+        pred = np.argmax(pred_raw, axis=1)
+        err = trainer.Trainer.error_rate(pred_raw, tg)
+        print err
+        ls_vx.append(vx)
+        ls_pred.append(pred)
+
+    # Count the number of voxels
+    n_vx = 0
+    for vx in ls_vx:
+        n_vx += vx.shape[0]
+
+    # Aggregate the data
+    vx_all = np.zeros((n_vx, 3), dtype=int)
+    pred_all = np.zeros((n_vx,), dtype=int)
+    idx = 0
+    for vx, pred in zip(ls_vx, ls_pred):
+        next_idx = idx+vx.shape[0]
+        vx_all[idx:next_idx] = vx
+        pred_all[idx:next_idx] = pred
+        idx = next_idx
+
+    img_true = lab
+    img_pred = create_img_from_pred(vx_all, pred_all, img_true.shape)
+    dices = compute_dice(img_pred, img_true, n_classes)
+    print dices
+
+    ### Save the brain images
+    # file_name = "test.png"
+    # plt.imshow(img_pred)
+    # plt.savefig('./images/pred_' + file_name)
+    #
+    # plt.imshow(img_true)
+    # plt.savefig('./images/true_' + file_name)
+    #
+    # plt.imshow(img_pred != img_true)
+    # plt.savefig('./images/diff_' + file_name)
+
+    end_time = time.clock()
+    print "It took {} seconds to evaluate the whole brain.".format(end_time - start_time)
+
+    return dices
 
 
 if __name__ == '__main__':
@@ -23,39 +110,9 @@ if __name__ == '__main__':
     ### Load the network
     net = load_network("net4.net")
 
-    ### Create the patches
-    file = [('./data/miccai/mri/1000.nii', './data/miccai/label/1000.nii')]
-    mri = nibabel.load(file[0][0]).get_data().squeeze()
-    lab = nibabel.load(file[0][1]).get_data().squeeze()
-    mri, lab = crop_image(mri, lab)
-    select_region = SelectPlaneXZ(100)
-    extract_voxel = ExtractVoxelAll(1)
-    pick_vx = PickVoxel(select_region, extract_voxel)
-    pick_patch = PickXYZ()
+    # Options for the dataset
+    pick_patch = PickPatchParallelOrthogonal(patch_width, 1)
     pick_tg = PickTgCentered()
-    dataset = DatasetBrainParcellation()
-    dataset.generate_from(file, n_classes, patch_width, True, 1, pick_vx, pick_patch, pick_tg)
-    analyse_data(dataset.outputs)
-    net.scale_dataset(dataset)
 
-    ### Predict the patches
-    pred1 = net.predict(dataset.inputs)
-    pred12 = np.argmax(pred1, axis=1)
-    err = trainer.Trainer.error_rate(pred1, dataset.outputs)
-    print err
-    img_true = lab[:, 100, :]
-    img_pred = create_img_from_pred(dataset.vx[:, (0, 2)], pred12, img_true.shape)
+    evaluate_network_on_dataset(net, pick_patch, pick_tg, n_classes)
 
-    ### Save the brain images
-    file_name = "test.png"
-    plt.imshow(img_pred)
-    plt.savefig('./images/pred_' + file_name)
-
-    plt.imshow(img_true)
-    plt.savefig('./images/true_' + file_name)
-
-    plt.imshow(img_pred != img_true)
-    plt.savefig('./images/diff_' + file_name)
-
-    dices = compute_dice(img_pred, img_true, n_classes)
-    print dices

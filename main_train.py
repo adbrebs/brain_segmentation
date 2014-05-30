@@ -1,37 +1,27 @@
 __author__ = 'adeb'
 
-import sys
-import ConfigParser
-
+from utilities import load_config
 from database import DataBaseBrainParcellation
-import nn
+import network as nn
 from trainer import Trainer
 
-
-def load_config():
-    cf = ConfigParser.ConfigParser()
-    if len(sys.argv) == 1:
-        cf.read('training.ini')
-    else:
-        cf.read(str(sys.argv[1]))
-    return cf
 
 if __name__ == '__main__':
 
     ### Load the config file
-    training_cf = load_config()
+    training_cf = load_config('training.ini')
 
     ### Create the database
     db = DataBaseBrainParcellation()
-    db.load_from_config(training_cf)
+    db.init_from_config(training_cf)
 
     ### Create the network
     # MLP kind network
-    net = nn.Network1()
-    net.init(3, db.n_out_features)
+    # net = nn.Network1()
+    # net.init(db.patch_width*db.patch_width, db.n_out_features)
     # CNN network
-    # net = nn.Network2()
-    # net.init(db.patch_width, db.patch_width, db.n_out_features)
+    net = nn.Network2()
+    net.init(db.patch_width, db.patch_width, db.n_out_features)
     # net = nn.Network3()
     # net.init(db.patch_width, db.patch_width, db.patch_width, db.n_out_features)
     print net

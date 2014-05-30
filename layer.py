@@ -4,18 +4,23 @@ __author__ = 'adeb'
 import numpy as np
 
 import theano
-import theano.tensor as T
 from theano.tensor.signal import downsample
 from theano.tensor.nnet import conv, conv3d2d
 
-from utilities import share
+from utilities import share, get_h5file_data
 from max_pool_3d import max_pool_3d
-from dataset import get_h5file_data
 
 
 class Layer():
     """
     Abstract class defining a layer of neurons.
+
+    Attributes:
+        name (string): Name of the layer (used for printing or writing)
+        w (theano shared numpy array): Weights of the layer
+        b (theano shared numpy array): Biases of the layer
+        params (list): [w,b]
+        neuron_type (NeuronType object): defines the type of the neurons of the layer
     """
     def __init__(self, neuron_type):
         self.name = None
@@ -23,6 +28,23 @@ class Layer():
         self.b = None
         self.params = None
         self.neuron_type = neuron_type
+
+    def init_parameters(self, w_shape, b_shape):
+        w_bound = self.compute_bound_parameters_virtual()
+
+        # initialize weights with random weights
+        self.w = share(np.asarray(
+            np.random.uniform(low=-w_bound, high=w_bound, size=w_shape),
+            dtype=theano.config.floatX), "w")
+
+        # the bias is a 1D tensor -- one bias per output feature map
+        b_values = 0.1 + np.zeros(b_shape, dtype=theano.config.floatX)  # Slightly positive for RELU units
+        self.b = share(b_values, "b")
+
+        self.params = [self.w, self.b]
+
+    def compute_bound_parameters_virtual(self):
+        raise NotImplementedError
 
     def forward(self, x, batch_size):
         """Return the output of the layer
@@ -34,10 +56,16 @@ class Layer():
         raise NotImplementedError
 
     def save_parameters(self, h5file, name):
+        """
+        Save all parameters of the layer in a hdf5 file.
+        """
         h5file.create_dataset(name + "/w", data=self.w.get_value(), dtype='f')
         h5file.create_dataset(name + "/b", data=self.b.get_value(), dtype='f')
 
     def load_parameters(self, h5file, name):
+        """
+        Load all parameters of the layer in a hdf5 file.
+        """
         self.w.set_value(get_h5file_data(h5file, name + "/w"))
         self.b.set_value(get_h5file_data(h5file, name + "/b"))
 
@@ -60,33 +88,18 @@ class LayerFullyConnected(Layer):
     """
     def __init__(self, neuron_type, n_in, n_out):
         Layer.__init__(self, neuron_type)
-        self.name = "Fully connected layer"
 
+        self.name = "Fully connected layer"
         self.n_in = n_in
         self.n_out = n_out
 
-        self.w, self.b = self.init()
+        self.init_parameters((self.n_in, self.n_out), (self.n_out,))
 
-        self.params = [self.w, self.b]
-
-    def init(self):
-        """
-        Initialize the parameters of the layer
-        """
-        w_values = np.asarray(np.random.uniform(
-            low=-np.sqrt(6. / (self.n_in + self.n_out)),
-            high=np.sqrt(6. / (self.n_in + self.n_out)),
-            size=(self.n_in, self.n_out)), dtype=theano.config.floatX)
-
-        b_values = 0.1 + np.zeros((self.n_out,), dtype=theano.config.floatX)
-
-        w = share(w_values, 'w')
-        b = share(b_values, 'b')
-
-        return w, b
+    def compute_bound_parameters_virtual(self):
+        return np.sqrt(6. / (self.n_in + self.n_out))
 
     def forward(self, x, batch_size):
-        return self.neuron_type.activation_function(T.dot(x, self.w) + self.b)
+        return self.neuron_type.activation_function(theano.tensor.dot(x, self.w) + self.b)
 
     def print_virtual(self):
         return "Number of inputs: {} \nNumber of outputs: {}\n".format(self.n_in, self.n_out)
@@ -112,22 +125,7 @@ class LayerConv2DAbstract(Layer):
 
         assert image_shape[0] == filter_shape[1]
 
-        fan_in, fan_out = self.init_bounds_parameters()
-
-        # initialize weights with random weights
-        w_bound = np.sqrt(6. / (fan_in + fan_out))
-        self.w = share(np.asarray(
-            np.random.uniform(low=-w_bound, high=w_bound, size=filter_shape),
-            dtype=theano.config.floatX), "w")
-
-        # the bias is a 1D tensor -- one bias per output feature map
-        b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
-        self.b = share(b_values, "b")
-
-        self.params = [self.w, self.b]
-
-    def init_bounds_parameters(self):
-        raise NotImplementedError
+        self.init_parameters(filter_shape, (filter_shape[0],))
 
     def forward(self, x, batch_size):
         img_batch_shape = (batch_size,) + self.image_shape
@@ -146,7 +144,7 @@ class LayerConv2DAbstract(Layer):
         raise NotImplementedError
 
     def print_virtual(self):
-        return "Image shape: {}\n Filter shape: {}\n".format(self.image_shape, self.filter_shape)
+        return "Image shape: {}\nFilter shape: {}\n".format(self.image_shape, self.filter_shape)
 
 
 class LayerConv2D(LayerConv2DAbstract):
@@ -157,10 +155,11 @@ class LayerConv2D(LayerConv2DAbstract):
         LayerConv2DAbstract.__init__(self, neuron_type, image_shape, filter_shape)
         self.name = "2D convolutional layer"
 
-    def init_bounds_parameters(self):
+    def compute_bound_parameters_virtual(self):
         fan_in = np.prod(self.filter_shape[1:])
         fan_out = self.filter_shape[0] * np.prod(self.filter_shape[2:])
-        return fan_in, fan_out
+
+        return np.sqrt(6. / (fan_in + fan_out))
 
     def forward_virtual(self, conv_out):
         return self.neuron_type.activation_function(conv_out + self.b.dimshuffle('x', 0, 'x', 'x')).flatten(2)
@@ -176,10 +175,11 @@ class LayerConvPool2D(LayerConv2DAbstract):
         LayerConv2DAbstract.__init__(self, neuron_type, image_shape, filter_shape)
         self.name = "2D convolutional + pooling layer"
 
-    def init_bounds_parameters(self):
+    def compute_bound_parameters_virtual(self):
         fan_in = np.prod(self.filter_shape[1:])
         fan_out = (self.filter_shape[0] * np.prod(self.filter_shape[2:]) / np.prod(self.poolsize))
-        return fan_in, fan_out
+
+        return np.sqrt(6. / (fan_in + fan_out))
 
     def forward_virtual(self, conv_out):
         # downsample each feature map individually, using maxpooling
@@ -190,7 +190,7 @@ class LayerConvPool2D(LayerConv2DAbstract):
         return self.neuron_type.activation_function(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x')).flatten(2)
 
     def print_virtual(self):
-        return LayerConv2DAbstract.print_virtual(self) + "\n Pool size: {}\n".format(self.poolsize)
+        return LayerConv2DAbstract.print_virtual(self) + "Pool size: {}\n".format(self.poolsize)
 
 
 class LayerConvPool3D(Layer):
@@ -210,27 +210,22 @@ class LayerConvPool3D(Layer):
         Layer.__init__(self, neuron_type)
         self.name = "3D convolutional + pooling layer"
 
-        in_width, in_height, in_depth = in_shape
-        flt_depth, flt_height, flt_width = flt_shape
+        in_width, in_height, in_depth = self.in_shape = in_shape
+        flt_depth, flt_height, flt_width = self.flt_shape = flt_shape
+        self.in_channels = in_channels
+        self.flt_channels = flt_channels
 
-        self.image_shape = image_shape = (in_depth, in_channels, in_height, in_width)
-        self.filter_shape = filter_shape = (flt_channels, flt_depth, in_channels, flt_height, flt_width)
+        self.image_shape = (in_depth, in_channels, in_height, in_width)
+        self.filter_shape = (flt_channels, flt_depth, in_channels, flt_height, flt_width)
         self.poolsize = poolsize
 
-        fan_in = in_width * in_height * in_depth
-        fan_out = flt_channels * flt_width * flt_height * flt_depth
+        self.init_parameters(self.filter_shape, (self.filter_shape[0],))
 
-        # initialize weights with random weights
-        w_bound = np.sqrt(6. / (fan_in + fan_out))
-        self.w = share(np.asarray(
-            np.random.uniform(low=-w_bound, high=w_bound, size=filter_shape),
-            dtype=theano.config.floatX), "w")
+    def compute_bound_parameters_virtual(self):
+        fan_in = np.prod(self.in_shape)
+        fan_out = self.flt_channels * np.prod(self.flt_shape) / np.prod(self.poolsize)
 
-        # the bias is a 1D tensor -- one bias per output feature map
-        b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
-        self.b = share(b_values, "b")
-
-        self.params = [self.w, self.b]
+        return np.sqrt(6. / (fan_in + fan_out))
 
     def forward(self, x, batch_size):
         img_batch_shape = (batch_size,) + self.image_shape
@@ -244,9 +239,10 @@ class LayerConvPool3D(Layer):
                                    filters_shape=self.filter_shape,
                                    border_mode='valid')
 
-        pooled_out = max_pool_3d(conv_out.dimshuffle([0,2,1,3,4]), self.poolsize, ignore_border=True)
+        perm = [0, 2, 1, 3, 4]
+        pooled_out = max_pool_3d(conv_out.dimshuffle(perm), self.poolsize, ignore_border=True)
 
-        return self.neuron_type.activation_function(pooled_out.dimshuffle([0,2,1,3,4])
+        return self.neuron_type.activation_function(pooled_out.dimshuffle(perm)
                                                     + self.b.dimshuffle('x', 'x', 0, 'x', 'x')).flatten(2)
 
     def print_virtual(self):

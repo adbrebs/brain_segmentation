@@ -10,8 +10,12 @@ from dataset import DatasetBrainParcellation
 
 class DataBase():
     """
-    Class responsible for splitting datasets into training, validating and testing datasets. It also loads them on
+    Abstract class responsible for splitting datasets into training, validating and testing datasets. It also loads them on
     the GPU.
+
+    Attributes:
+        test_in, test_out, valid_in, valid_out, train_in, train_out (Theano shared 2D matrices): data sets loaded on
+            the GPU.
     """
     def __init__(self):
 
@@ -19,47 +23,53 @@ class DataBase():
         self.n_out_features = None
         self.n_data = None
 
-        self.test_x = None
-        self.test_y = None
-        self.valid_x = None
-        self.valid_y = None
-        self.train_x = None
-        self.train_y = None
+        self.test_in = None
+        self.test_out = None
+        self.valid_in = None
+        self.valid_out = None
+        self.train_in = None
+        self.train_out = None
 
         self.n_train = None
         self.n_valid = None
         self.n_test = None
 
-    def load_from_config(self, config):
+    def init_from_config(self, config):
         raise NotImplementedError
 
-    def share_data(self, test_x, test_y, valid_x, valid_y, train_x, train_y):
+    def share_data(self, test_in, test_out, valid_in, valid_out, train_in, train_out):
         """
         Store the data in shared variables
         """
-        self.test_x = share(test_x)
-        self.test_y = share(test_y)
-        self.valid_x = share(valid_x)
-        self.valid_y = share(valid_y)
-        self.train_x = share(train_x)
-        self.train_y = share(train_y)
+        self.test_in = share(test_in)
+        self.test_out = share(test_out)
+        self.valid_in = share(valid_in)
+        self.valid_out = share(valid_out)
+        self.train_in = share(train_in)
+        self.train_out = share(train_out)
 
-        self.n_train, self.n_in_features = self.train_x.get_value(borrow=True).shape
-        self.n_valid = self.valid_x.get_value(borrow=True).shape[0]
-        self.n_test = self.test_x.get_value(borrow=True).shape[0]
+        self.n_train, self.n_in_features = train_in.shape
+        self.n_valid = valid_in.shape[0]
+        self.n_test = test_in.shape[0]
 
-        self.n_out_features = self.train_y.get_value(borrow=True).shape[1]
+        self.n_out_features = train_out.shape[1]
         self.n_data = self.n_train + self.n_valid + self.n_test
 
 
 class DataBaseBrainParcellation(DataBase):
+    """
+    Attributes:
+        patch_width (int): width of an input patch
+        n_patch_per_voxel_testing (int): number of patches per unique voxel in the testing data set. This allows the
+            output of a voxel to be predicted from several patches.
+    """
     def __init__(self):
         DataBase.__init__(self)
 
         self.patch_width = None
         self.n_patch_per_voxel_testing = None
 
-    def load_from_config(self, config):
+    def init_from_config(self, config):
 
         training_data_file = config.get('dataset', 'training_data')
         testing_data_file = config.get('dataset', 'testing_data')
@@ -72,7 +82,7 @@ class DataBaseBrainParcellation(DataBase):
         testing_data = DatasetBrainParcellation()
         testing_data.read(testing_data_file)
         if training_data.n_in_features != testing_data.n_in_features:
-            raise Exception("The training and testing datasets do not have the same number of features")
+            raise Exception("The training and testing datasets do not have the same number of input features")
         if training_data.n_out_features != testing_data.n_out_features:
             raise Exception("The training and testing datasets do not have the same number of outputs")
 
@@ -82,7 +92,8 @@ class DataBaseBrainParcellation(DataBase):
         n_data = training_data.n_data
 
         # Create a validation set
-        validatioin_split = int(0.9 * n_data)
+        prop_validation = config.getfloat('dataset', 'prop_validation')
+        validatioin_split = int((1-prop_validation) * n_data)
         train_x = training_data.inputs[0:validatioin_split-1, :]
         train_y = training_data.outputs[0:validatioin_split-1, :]
         valid_x = training_data.inputs[validatioin_split:n_data, :]
@@ -92,4 +103,5 @@ class DataBaseBrainParcellation(DataBase):
         test_x = testing_data.inputs
         test_y = testing_data.outputs
 
+        # Transform the data into Theano shared variables
         self.share_data(test_x, test_y, valid_x, valid_y, train_x, train_y)

@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 import theano
 import theano.tensor as T
 
-from dataset import analyse_data
+from utilities import analyse_data
 import learning_update
 
 
@@ -21,7 +21,7 @@ class Trainer():
 
         self.net = net
 
-        analyse_data(ds.train_y.get_value())
+        analyse_data(ds.train_out.get_value())
 
         # Scale the data
         if scale:
@@ -52,32 +52,32 @@ class Trainer():
         grads = T.grad(cost, params)
 
         # Compute updates
-        lr_update = learning_update.LearningUpdateGDMomentum(self.learning_rate, 0.9)
+        lr_update = learning_update.LearningUpdateGDMomentum(self.learning_rate, 0.5)
         updates = lr_update.compute_updates(params, grads)
 
         idx_batch = T.lscalar()
         id1 = idx_batch * self.batch_size
         id2 = (idx_batch + 1) * self.batch_size
-        self.testing_score = theano.function(
+        self.testing_error = theano.function(
             inputs=[idx_batch],
             outputs=self.error_rate_symb(y_pred, y_true),
-            givens={x: ds.test_x[id1:id2], y_true: ds.test_y[id1:id2]})
+            givens={x: ds.test_in[id1:id2], y_true: ds.test_out[id1:id2]})
 
-        self.validation_score = theano.function(
+        self.validation_error = theano.function(
             inputs=[idx_batch],
             outputs=self.error_rate_symb(y_pred, y_true),
-            givens={x: ds.valid_x[id1:id2], y_true: ds.valid_y[id1:id2]})
+            givens={x: ds.valid_in[id1:id2], y_true: ds.valid_out[id1:id2]})
 
-        self.training_score = theano.function(
+        self.training_error = theano.function(
             inputs=[idx_batch],
             outputs=self.error_rate_symb(y_pred, y_true),
-            givens={x: ds.train_x[id1:id2], y_true: ds.train_y[id1:id2]})
+            givens={x: ds.train_in[id1:id2], y_true: ds.train_out[id1:id2]})
 
         self.train_model = theano.function(
             inputs=[idx_batch],
             outputs=cost,
             updates=updates,
-            givens={x: ds.train_x[id1:id2], y_true: ds.train_y[id1:id2]})
+            givens={x: ds.train_in[id1:id2], y_true: ds.train_out[id1:id2]})
 
     @staticmethod
     def mse_symb(y_pred, y_true):
@@ -146,7 +146,7 @@ class Trainer():
 
         best_validation_loss = np.inf
         best_iter = 0
-        test_score = 0.
+        test_error = 0.
         best_params = None
 
         freq_display_batch = self.n_train_batches / 4
@@ -156,9 +156,17 @@ class Trainer():
 
         starting_epoch_time = time.clock()
 
-        training_score_records = []
-        testing_score_records = []
-        validation_score_records = []
+        training_error_records = []
+        testing_error_records = []
+        validation_error_records = []
+
+        # Before starting training, evaluate the initial model
+        self.__save_record(id_mini_batch, 0, self.training_error,
+                           training_error_records, "training error")
+        self.__save_record(id_mini_batch, 0, self.validation_error,
+                           validation_error_records, "validation error")
+        self.__save_record(id_mini_batch, 0, self.testing_error,
+                           testing_error_records, "test error of the best model so far")
 
         while (epoch < self.n_epochs) and (not early_stopping):
             epoch += 1
@@ -167,11 +175,14 @@ class Trainer():
 
                 id_mini_batch += 1
 
+                # Display minibatch number
                 if id_mini_batch % freq_display_batch == 0:
                     print("    minibatch {}/{}".format(minibatch_index + 1, self.n_train_batches))
 
+                # Train on the current minibatch
                 self.train_model(minibatch_index)
 
+                # Early stopping
                 if patience <= id_mini_batch:
                     early_stopping = True
                     break
@@ -179,61 +190,59 @@ class Trainer():
                 if (id_mini_batch + 1) % validation_frequency > 0:
                     continue
 
-                # compute training error
-                training_losses = [self.training_score(i) for i in xrange(self.n_valid_batches)]
-                this_training_loss = np.mean(training_losses)
-                print("    minibatch {}/{}, training error: {}".format(
-                    minibatch_index + 1, self.n_train_batches, this_training_loss))
-                training_score_records.append((id_mini_batch, this_training_loss))
+                # Compute the training error and save it
+                self.__save_record(id_mini_batch, minibatch_index, self.training_error,
+                                   training_error_records, "training error")
 
                 # compute validation error
-                validation_losses = [self.validation_score(i) for i in xrange(self.n_valid_batches)]
-                this_validation_loss = np.mean(validation_losses)
-                print("    minibatch {}/{}, validation error: {}".format(
-                    minibatch_index + 1, self.n_train_batches, this_validation_loss))
-                validation_score_records.append((id_mini_batch, this_validation_loss))
+                valid_error = self.__save_record(id_mini_batch, minibatch_index, self.validation_error,
+                                                 validation_error_records, "validation error")
 
-                # if we got the best validation score until now
-                if this_validation_loss >= best_validation_loss:
+                # if we get the lowest validation error until now
+                if valid_error >= best_validation_loss:
                     continue
 
                 #improve patience if loss improvement is good enough
-                if this_validation_loss < best_validation_loss * improvement_threshold:
+                if valid_error < best_validation_loss * improvement_threshold:
                     patience = id_mini_batch + patience_increase
 
-                # save best validation score and iteration number
-                best_validation_loss = this_validation_loss
+                # save the lowest validation error
+                best_validation_loss = valid_error
                 best_iter = id_mini_batch
                 best_params = self.net.export_params()
 
                 # test it on the test set
-                test_losses = [self.testing_score(i) for i in xrange(self.n_test_batches)]
-                test_score = np.mean(test_losses)
-                print("    minibatch {}/{}, test error of the best model so far: {}".format(
-                    minibatch_index + 1, self.n_train_batches, test_score))
-                testing_score_records.append((id_mini_batch, test_score))
+                test_error = self.__save_record(id_mini_batch, minibatch_index, self.testing_error,
+                                                testing_error_records, "test error of the best model so far")
 
             print("    epoch {} finished after {} seconds".format(epoch, time.clock() - starting_epoch_time))
             starting_epoch_time = time.clock()
 
         end_time = time.clock()
         self.net.import_params(best_params)
-        print('Training complete.')
-        print('Best validation score of %f obtained at iteration %i with test performance %f' %
-              (best_validation_loss, best_iter + 1, test_score))
-        print >> sys.stderr, ('The code for file ran for %.2fm' % ((end_time - start_time) / 60.))
+        print("Training complete.")
+        print('Best validation error of {} obtained at iteration {} with test performance {}'.format(
+            best_validation_loss, best_iter + 1, test_error))
+        print >> sys.stderr, ("Training ran for {} minutes".format((end_time - start_time) / 60.))
 
-        self.__save_records("t.png", training_score_records, testing_score_records, validation_score_records)
+        self.__save_records("t.png", training_error_records, testing_error_records, validation_error_records)
+
+    def __save_record(self, id_mini_batch, minibatch_index, error_function, error_records, name):
+        losses = [error_function(i) for i in xrange(self.n_test_batches)]
+        error = np.mean(losses)
+        print("    minibatch {}/{}, {}: {}".format(minibatch_index + 1, self.n_train_batches, error, name))
+        error_records.append((id_mini_batch, error))
+        return error
 
     @staticmethod
-    def __save_records(file_name, training_score_records, testing_score_records, validation_score_records):
+    def __save_records(file_name, training_error_records, testing_erro_records, validation_error_records):
 
-        def save_score(score, legend):
-            plt.plot(*zip(*score), label=legend)
+        def save_error(error, legend):
+            plt.plot(*zip(*error), label=legend)
 
-        save_score(training_score_records, "training data")
-        save_score(testing_score_records, "testing data")
-        save_score(validation_score_records, "validation data")
+        save_error(training_error_records, "training data")
+        save_error(testing_erro_records, "testing data")
+        save_error(validation_error_records, "validation data")
 
         plt.xlabel('Minibatch index')
         plt.ylabel('Error rate')

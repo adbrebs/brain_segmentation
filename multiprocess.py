@@ -13,7 +13,7 @@ def spawn(f):
     return fun
 
 
-def parmap(f, X, nprocs=multiprocessing.cpu_count()):
+def parmap(f, x, nprocs=multiprocessing.cpu_count()):
     """
     Parallel map that can be used with method functions or lambda functions contrary to the built multiprocessing map
     or imap functions.
@@ -26,7 +26,7 @@ def parmap(f, X, nprocs=multiprocessing.cpu_count()):
         p.daemon = True
         p.start()
 
-    sent = [q_in.put((i, x)) for i, x in enumerate(X)]
+    sent = [q_in.put((i, x)) for i, x in enumerate(x)]
     [q_in.put((None, None)) for _ in range(nprocs)]
     res = [q_out.get() for _ in range(len(sent))]
 
