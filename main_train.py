@@ -1,7 +1,8 @@
 __author__ = 'adeb'
 
-from utilities import load_config
+from utilities import load_config, create_directories
 from database import DataBaseBrainParcellation
+from dataset import generate_and_save
 import network as nn
 from trainer import Trainer
 
@@ -9,7 +10,12 @@ from trainer import Trainer
 if __name__ == '__main__':
 
     ### Load the config file
-    training_cf = load_config('training.ini')
+    training_cf = load_config("cfg_general")
+
+    ### Create datasets if specified
+    if training_cf.create_data:
+        generate_and_save(training_cf.cfg_train)
+        generate_and_save(training_cf.cfg_test)
 
     ### Create the database
     db = DataBaseBrainParcellation()
@@ -31,4 +37,4 @@ if __name__ == '__main__':
     t.train()
 
     ### Save the network
-    net.save_parameters(training_cf.get("general", "net"))
+    net.save_parameters(training_cf.net_path)

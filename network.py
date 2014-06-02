@@ -120,11 +120,11 @@ class Network(object):
         data /= self.scalar_std
         return data
 
-    def save_parameters(self, file_name):
+    def save_parameters(self, file_path):
         """
         Save parameters (weights, biases) of the network in an hdf5 file
         """
-        f = h5py.File("./networks/" + file_name, "w")
+        f = h5py.File(file_path, "w")
         f.attrs['network_type'] = self.__class__.__name__
         f.attrs['n_in'] = self.n_in
         f.attrs['n_out'] = self.n_out

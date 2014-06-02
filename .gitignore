@@ -71,3 +71,4 @@ docs/_build/
 *.net
 *.png
 meg/
+experiments/

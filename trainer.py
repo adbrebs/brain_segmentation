@@ -20,6 +20,7 @@ class Trainer():
         print '... configure training'
 
         self.net = net
+        self.folder_path = config.folder_path
 
         analyse_data(ds.train_out.get_value())
 
@@ -28,11 +29,11 @@ class Trainer():
             net.create_scaling_from_raw_database(ds)
             net.scale_database(ds)
 
-        self.patience_increase = config.getint('training', 'patience_increase')
-        self.improvement_threshold = config.getfloat('training', 'improvement_threshold')
-        self.batch_size = config.getint('training', 'batch_size')
-        self.learning_rate = config.getfloat('training', 'learning_rate')
-        self.n_epochs = config.getint('training', 'n_epochs')
+        self.patience_increase = config.patience_increase
+        self.improvement_threshold = config.improvement_threshold
+        self.batch_size = config.batch_size
+        self.learning_rate = config.learning_rate
+        self.n_epochs = config.n_epochs
 
         self.n_train_batches = ds.n_train / self.batch_size
         self.n_valid_batches = ds.n_valid / self.batch_size
@@ -149,7 +150,7 @@ class Trainer():
         test_error = 0.
         best_params = None
 
-        freq_display_batch = self.n_train_batches / 4
+        freq_display_batch = max(self.n_train_batches / 4, 1)
         epoch = 0
         early_stopping = False
         id_mini_batch = 0
@@ -162,11 +163,11 @@ class Trainer():
 
         # Before starting training, evaluate the initial model
         self.__save_record(id_mini_batch, 0, self.training_error,
-                           training_error_records, "training error")
+                           training_error_records, self.n_train_batches, "training error")
         self.__save_record(id_mini_batch, 0, self.validation_error,
-                           validation_error_records, "validation error")
+                           validation_error_records, self.n_valid_batches, "validation error")
         self.__save_record(id_mini_batch, 0, self.testing_error,
-                           testing_error_records, "test error of the best model so far")
+                           testing_error_records, self.n_test_batches, "test error of the best model so far")
 
         while (epoch < self.n_epochs) and (not early_stopping):
             epoch += 1
@@ -192,11 +193,11 @@ class Trainer():
 
                 # Compute the training error and save it
                 self.__save_record(id_mini_batch, minibatch_index, self.training_error,
-                                   training_error_records, "training error")
+                                   training_error_records, self.n_train_batches, "training error")
 
                 # compute validation error
                 valid_error = self.__save_record(id_mini_batch, minibatch_index, self.validation_error,
-                                                 validation_error_records, "validation error")
+                                                 validation_error_records, self.n_valid_batches, "validation error")
 
                 # if we get the lowest validation error until now
                 if valid_error >= best_validation_loss:
@@ -213,7 +214,8 @@ class Trainer():
 
                 # test it on the test set
                 test_error = self.__save_record(id_mini_batch, minibatch_index, self.testing_error,
-                                                testing_error_records, "test error of the best model so far")
+                                                testing_error_records, self.n_test_batches,
+                                                "test error of the best model so far")
 
             print("    epoch {} finished after {} seconds".format(epoch, time.clock() - starting_epoch_time))
             starting_epoch_time = time.clock()
@@ -225,17 +227,18 @@ class Trainer():
             best_validation_loss, best_iter + 1, test_error))
         print >> sys.stderr, ("Training ran for {} minutes".format((end_time - start_time) / 60.))
 
-        self.__save_records("t.png", training_error_records, testing_error_records, validation_error_records)
+        self.__save_records(self.folder_path + "t.png",
+                            training_error_records, testing_error_records, validation_error_records)
 
-    def __save_record(self, id_mini_batch, minibatch_index, error_function, error_records, name):
-        losses = [error_function(i) for i in xrange(self.n_test_batches)]
+    def __save_record(self, id_mini_batch, minibatch_index, error_function, error_records, n_batches, name):
+        losses = [error_function(i) for i in xrange(n_batches)]
         error = np.mean(losses)
         print("    minibatch {}/{}, {}: {}".format(minibatch_index + 1, self.n_train_batches, error, name))
         error_records.append((id_mini_batch, error))
         return error
 
     @staticmethod
-    def __save_records(file_name, training_error_records, testing_erro_records, validation_error_records):
+    def __save_records(file_path, training_error_records, testing_erro_records, validation_error_records):
 
         def save_error(error, legend):
             plt.plot(*zip(*error), label=legend)
@@ -247,4 +250,4 @@ class Trainer():
         plt.xlabel('Minibatch index')
         plt.ylabel('Error rate')
         plt.legend(loc='upper right')
-        plt.savefig('./images/training/' + file_name)
+        plt.savefig(file_path)

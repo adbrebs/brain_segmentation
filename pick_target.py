@@ -7,7 +7,7 @@ def create_pick_target(config_ini):
     """
     Factory function to the objects responsible for picking the targets
     """
-    how_tg = config_ini.get("pick_tg", 'how')
+    how_tg = config_ini.pick_tg["how"]
     if how_tg == "center":
         pick_tg = PickTgCentered()
     elif how_tg == "proportion":

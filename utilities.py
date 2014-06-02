@@ -1,9 +1,9 @@
 __author__ = 'adeb'
 
+import os
 import sys
 import h5py
 import numpy as np
-import ConfigParser
 
 import theano
 
@@ -14,12 +14,27 @@ def load_config(default_file):
     Attributes:
         default_file (string): If no *args is provided, use this argument.
     """
-    cf = ConfigParser.ConfigParser()
     if len(sys.argv) == 1:
-        cf.read(default_file)
+        cf = __import__(default_file)
     else:
-        cf.read(str(sys.argv[1]))
+        cf = __import__(str(sys.argv[1]))
+
     return cf
+
+
+def create_directories(folder_name):
+    # Create directories if they don't exist
+    data_dir = "./data"
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+    experiments_dir = "./experiments"
+    if not os.path.exists(experiments_dir):
+        os.makedirs(experiments_dir)
+    exp_dir = experiments_dir + "/" + folder_name + "/"
+    if not os.path.exists(exp_dir):
+        os.makedirs(exp_dir)
+
+    return exp_dir
 
 
 def share(data, name=None, borrow=True):

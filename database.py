@@ -71,8 +71,8 @@ class DataBaseBrainParcellation(DataBase):
 
     def init_from_config(self, config):
 
-        training_data_file = config.get('dataset', 'training_data')
-        testing_data_file = config.get('dataset', 'testing_data')
+        training_data_file = config.training_data_path
+        testing_data_file = config.testing_data_path
 
         print '... loading data ' + training_data_file + ' and ' + testing_data_file
 
@@ -92,10 +92,10 @@ class DataBaseBrainParcellation(DataBase):
         n_data = training_data.n_data
 
         # Create a validation set
-        prop_validation = config.getfloat('dataset', 'prop_validation')
+        prop_validation = config.prop_validation
         validatioin_split = int((1-prop_validation) * n_data)
-        train_x = training_data.inputs[0:validatioin_split-1, :]
-        train_y = training_data.outputs[0:validatioin_split-1, :]
+        train_x = training_data.inputs[0:validatioin_split, :]
+        train_y = training_data.outputs[0:validatioin_split, :]
         valid_x = training_data.inputs[validatioin_split:n_data, :]
         valid_y = training_data.outputs[validatioin_split:n_data, :]
 

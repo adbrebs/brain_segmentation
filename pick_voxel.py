@@ -7,19 +7,19 @@ def create_pick_voxel(config_ini):
     """
     Factory function to create the objects responsible for picking the voxels
     """
-    where_vx = config_ini.get("pick_voxel", 'where')
-    how_vx = config_ini.get("pick_voxel", 'how')
+    where_vx = config_ini.pick_vx["where"]
+    how_vx = config_ini.pick_vx["how"]
     if where_vx == "anywhere":
         select_region = SelectWholeBrain()
     elif where_vx == "plane":
-        axis = config_ini.getint("pick_voxel", 'axis')
-        plane = config_ini.getint("pick_voxel", 'plane')
+        axis = config_ini.pick_vx["axis"]
+        plane = config_ini.pick_vx["plane"]
         select_region = SelectPlane(axis, plane)
     else:
         print "error in pick_voxel"
         return
 
-    n_patch_per_voxel = config_ini.getint("generate_data", "n_patch_per_voxel")
+    n_patch_per_voxel = config_ini.general["n_patch_per_voxel"]
 
     if how_vx == "all":
         extract_voxel = ExtractVoxelAll(n_patch_per_voxel)

@@ -55,8 +55,8 @@ class DataGeneratorBrain(DataGenerator):
         self.pick_vx = create_pick_voxel(config)
         self.pick_patch = create_pick_patch(config)
         self.pick_tg = create_pick_target(config)
-        self.files = list_miccai_files(config.get("generate_data", "source_folder"))
-        self.n_patch_per_voxel = config.getint("generate_data", "n_patch_per_voxel")
+        self.files = list_miccai_files(config.general["source_folder"])
+        self.n_patch_per_voxel = config.general["n_patch_per_voxel"]
         self.__init_common()
 
     def init_from(self, files, pick_vx, pick_patch, pick_tg, n_patch_per_voxel):

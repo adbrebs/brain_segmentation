@@ -9,13 +9,17 @@ def create_pick_patch(config_ini):
     """
     Factory function to create the objects responsible for picking the patches
     """
-    how_patch = config_ini.get("pick_patch", 'how')
-    patch_width = config_ini.getint("pick_patch", 'patch_width')
+    how_patch = config_ini.pick_patch["how"]
+    patch_width = config_ini.pick_patch["patch_width"]
     if how_patch == "3D":
         pick_patch = PickPatch3DSimple(patch_width)
     elif how_patch == "2Dortho":
-        axis = config_ini.getint("pick_patch", 'axis')
+        axis = config_ini.pick_patch["axis"]
         pick_patch = PickPatchParallelOrthogonal(patch_width, axis)
+    elif how_patch == "2DorthoRotated":
+        axis = config_ini.pick_patch["axis"]
+        max_degree_rotation = config_ini.pick_patch["max_degree_rotation"]
+        pick_patch = PickPatchSlightlyRotated(patch_width, axis, max_degree_rotation)
     else:
         print "error in pick_patch"
         return

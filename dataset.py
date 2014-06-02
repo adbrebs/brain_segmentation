@@ -51,11 +51,11 @@ class Dataset():
     def shuffle_data_virtual(self, perm):
         pass
 
-    def write(self, file_name):
+    def write(self, file_path):
         """
         write the dataset in a hdf5 file.
         """
-        h5file = h5py.File("./data/" + file_name, "w")
+        h5file = h5py.File(file_path, "w")
         h5file.create_dataset("inputs", data=self.inputs, dtype='f')
         h5file.create_dataset("outputs", data=self.outputs, dtype='f')
 
@@ -72,11 +72,11 @@ class Dataset():
     def write_virtual(self, h5file):
         pass
 
-    def read(self, file_name):
+    def read(self, file_path):
         """
         load the dataset from a hdf5 file.
         """
-        h5file = open_h5file("./data/" + file_name)
+        h5file = open_h5file(file_path)
         self.inputs = h5file["inputs"].value
         self.outputs = h5file["outputs"].value
 
@@ -115,8 +115,8 @@ class DatasetBrainParcellation(Dataset):
     def populate_from_config(self, config):
         data_generator = DataGeneratorBrain()
         data_generator.init_from_config(config)
-        vx, inputs, idx_patch, outputs, file_id = data_generator.generate(config.getint('generate_data', 'n_data'))
-        self.populate(inputs, outputs, vx, idx_patch, file_id, config.getint("pick_patch", "patch_width"))
+        vx, inputs, idx_patch, outputs, file_id = data_generator.generate(config.general["n_data"])
+        self.populate(inputs, outputs, vx, idx_patch, file_id, config.pick_patch["patch_width"])
         self.shuffle_data()
 
     def populate(self, inputs, outputs, vx, idx_patch, file_id, patch_width):
@@ -148,3 +148,10 @@ class DatasetBrainParcellation(Dataset):
 
         self.n_patch_per_voxel = int(h5file.attrs["n_patch_per_voxel"])
         self.patch_width = int(h5file.attrs["patch_width"])
+
+
+def generate_and_save(config):
+    file_path = config.general["file_path"]
+    ds = DatasetBrainParcellation()
+    ds.populate_from_config(config)
+    ds.write(file_path)
