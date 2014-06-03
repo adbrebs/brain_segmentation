@@ -30,10 +30,12 @@ prop_validation = 0.3
 
 # Training parameters
 batch_size = 200
-learning_rate = 0.13
 n_epochs = 1000
 patience_increase = 10
 improvement_threshold = 0.999
+learning_update = "GDmomentum"  # GD, GDmomentum
+learning_rate = 0.13
+momentum = 0.5
 
 # Copy the config file
 copy2(inspect.getfile(inspect.currentframe()), folder_path)

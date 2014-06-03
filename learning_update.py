@@ -7,6 +7,21 @@ import theano
 from utilities import share
 
 
+def create_learning_update(cfg):
+    """
+    Factory function to create a learning update object given a config file.
+    """
+    learning_rate = cfg.learning_rate
+    if cfg.learning_update == "GD":
+        learning_update = LearningUpdateGD(learning_rate)
+    elif cfg.learning_update == "GDmomentum":
+        learning_update = LearningUpdateGDMomentum(learning_rate, cfg.momentum)
+    else:
+        raise Exception("No Learning update with this name. Check the config file.")
+
+    return learning_update
+
+
 class LearningUpdate():
     """
     Abstract class defining the update in a Trainer object.

@@ -53,7 +53,7 @@ class Trainer():
         grads = T.grad(cost, params)
 
         # Compute updates
-        lr_update = learning_update.LearningUpdateGDMomentum(self.learning_rate, 0.5)
+        lr_update = learning_update.create_learning_update(config)
         updates = lr_update.compute_updates(params, grads)
 
         idx_batch = T.lscalar()
