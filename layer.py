@@ -1,250 +1,116 @@
 __author__ = 'adeb'
 
-
 import numpy as np
-
-import theano
-from theano.tensor.signal import downsample
-from theano.tensor.nnet import conv, conv3d2d
-
-from utilities import share, get_h5file_data
-from max_pool_3d import max_pool_3d
+import theano.tensor as T
 
 
 class Layer():
     """
-    Abstract class defining a layer of neurons.
-
-    Attributes:
-        name (string): Name of the layer (used for printing or writing)
-        w (theano shared numpy array): Weights of the layer
-        b (theano shared numpy array): Biases of the layer
-        params (list): [w,b]
-        neuron_type (NeuronType object): defines the type of the neurons of the layer
+    This abstract class represents a layer of a neural network.
     """
-    def __init__(self, neuron_type):
-        self.name = None
-        self.w = None
-        self.b = None
-        self.params = None
-        self.neuron_type = neuron_type
+    def __init__(self):
+        self.params = []
 
-    def init_parameters(self, w_shape, b_shape):
-        w_bound = self.compute_bound_parameters_virtual()
-
-        # initialize weights with random weights
-        self.w = share(np.asarray(
-            np.random.uniform(low=-w_bound, high=w_bound, size=w_shape),
-            dtype=theano.config.floatX), "w")
-
-        # the bias is a 1D tensor -- one bias per output feature map
-        b_values = 0.1 + np.zeros(b_shape, dtype=theano.config.floatX)  # Slightly positive for RELU units
-        self.b = share(b_values, "b")
-
-        self.params = [self.w, self.b]
-
-    def compute_bound_parameters_virtual(self):
-        raise NotImplementedError
-
-    def forward(self, x, batch_size):
-        """Return the output of the layer
+    def forward(self, input_list, batch_size):
+        """Return the output of the layer block
         Args:
-            x (theano.tensor.TensorType): input of the layer
+            input_list (list of theano.tensor.TensorType): input of the block layer
         Returns:
-            (theano.tensor.TensorType): output of the layer
+            (list of theano.tensor.TensorType): output of the block layer
         """
         raise NotImplementedError
 
     def save_parameters(self, h5file, name):
         """
-        Save all parameters of the layer in a hdf5 file.
+        Save all parameters of the block layer in a hdf5 file.
         """
-        h5file.create_dataset(name + "/w", data=self.w.get_value(), dtype='f')
-        h5file.create_dataset(name + "/b", data=self.b.get_value(), dtype='f')
+        pass
 
     def load_parameters(self, h5file, name):
         """
-        Load all parameters of the layer in a hdf5 file.
+        Load all parameters of the block layer in a hdf5 file.
         """
-        self.w.set_value(get_h5file_data(h5file, name + "/w"))
-        self.b.set_value(get_h5file_data(h5file, name + "/b"))
+        pass
 
     def __str__(self):
-        msg = "[{}] with [{}] \n".format(self.name, self.neuron_type)
-        msg += self.print_virtual()
-        n_parameters = 0
-        for p in self.params:
-            n_parameters += p.get_value().size
-        msg += "Number of parameters: {} \n".format(n_parameters)
-        return msg
-
-    def print_virtual(self):
-        return ""
-
-
-class LayerFullyConnected(Layer):
-    """
-    Layer in which each input is connected to all the layer neurons
-    """
-    def __init__(self, neuron_type, n_in, n_out):
-        Layer.__init__(self, neuron_type)
-
-        self.name = "Fully connected layer"
-        self.n_in = n_in
-        self.n_out = n_out
-
-        self.init_parameters((self.n_in, self.n_out), (self.n_out,))
-
-    def compute_bound_parameters_virtual(self):
-        return np.sqrt(6. / (self.n_in + self.n_out))
-
-    def forward(self, x, batch_size):
-        return self.neuron_type.activation_function(theano.tensor.dot(x, self.w) + self.b)
-
-    def print_virtual(self):
-        return "Number of inputs: {} \nNumber of outputs: {}\n".format(self.n_in, self.n_out)
-
-
-class LayerConv2DAbstract(Layer):
-    """
-    Abstract class defining common components of LayerConv2D and LayerConvPool2D
-    """
-    def __init__(self, neuron_type, image_shape, filter_shape):
-        """
-        Args:
-            image_shape (tuple or list of length 3):
-            (num input feature maps, image height, image width)
-
-            filter_shape (tuple or list of length 4):
-            (number of filters, num input feature maps, filter height, filter width)
-        """
-        Layer.__init__(self, neuron_type)
-
-        self.image_shape = image_shape
-        self.filter_shape = filter_shape
-
-        assert image_shape[0] == filter_shape[1]
-
-        self.init_parameters(filter_shape, (filter_shape[0],))
-
-    def forward(self, x, batch_size):
-        img_batch_shape = (batch_size,) + self.image_shape
-
-        x = x.reshape(img_batch_shape)
-
-        # convolve input feature maps with filters
-        conv_out = conv.conv2d(input=x,
-                               filters=self.w,
-                               image_shape=img_batch_shape,
-                               filter_shape=self.filter_shape)
-
-        return self.forward_virtual(conv_out)
-
-    def forward_virtual(self, conv_out):
         raise NotImplementedError
 
-    def print_virtual(self):
-        return "Image shape: {}\nFilter shape: {}\n".format(self.image_shape, self.filter_shape)
 
-
-class LayerConv2D(LayerConv2DAbstract):
+class LayerMerge(Layer):
     """
-    2D convolutional layer
+    Merge the outputs of the previous layer.
     """
-    def __init__(self, neuron_type, image_shape, filter_shape):
-        LayerConv2DAbstract.__init__(self, neuron_type, image_shape, filter_shape)
-        self.name = "2D convolutional layer"
+    def __init__(self):
+        Layer.__init__(self)
 
-    def compute_bound_parameters_virtual(self):
-        fan_in = np.prod(self.filter_shape[1:])
-        fan_out = self.filter_shape[0] * np.prod(self.filter_shape[2:])
+    def forward(self, input_list, batch_size):
+        return [T.concatenate(list(input_list), axis=1)]
 
-        return np.sqrt(6. / (fan_in + fan_out))
-
-    def forward_virtual(self, conv_out):
-        return self.neuron_type.activation_function(conv_out + self.b.dimshuffle('x', 0, 'x', 'x')).flatten(2)
+    def __str__(self):
+        return "Merging layer\n"
 
 
-class LayerConvPool2D(LayerConv2DAbstract):
+class LayerDivide(Layer):
     """
-    2D convolutional layer + pooling layer. The reason for not having a separate pooling layer is that the combination
-    of the two layers can be optimized.
+    Divide the output of the previous layer so that different blocks can be used in the next layer.
     """
-    def __init__(self, neuron_type, image_shape, filter_shape, poolsize=(2, 2)):
-        self.poolsize = poolsize
-        LayerConv2DAbstract.__init__(self, neuron_type, image_shape, filter_shape)
-        self.name = "2D convolutional + pooling layer"
+    def __init__(self, proportions):
+        Layer.__init__(self)
+        self.limits = proportions
 
-    def compute_bound_parameters_virtual(self):
-        fan_in = np.prod(self.filter_shape[1:])
-        fan_out = (self.filter_shape[0] * np.prod(self.filter_shape[2:]) / np.prod(self.poolsize))
+    def forward(self, input_list, batch_size):
+        if len(input_list) != 1:
+            raise Exception("LayerDivide's input should be of length 1")
+        input = input_list[0]
 
-        return np.sqrt(6. / (fan_in + fan_out))
+        output_list = []
+        for i in xrange(len(self.limits) - 1):
+            s = slice(self.limits[i], self.limits[i+1])
+            output_list.append(input[:, s])
+        return output_list
 
-    def forward_virtual(self, conv_out):
-        # downsample each feature map individually, using maxpooling
-        pooled_out = downsample.max_pool_2d(input=conv_out,
-                                            ds=self.poolsize,
-                                            ignore_border=True)
-
-        return self.neuron_type.activation_function(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x')).flatten(2)
-
-    def print_virtual(self):
-        return LayerConv2DAbstract.print_virtual(self) + "Pool size: {}\n".format(self.poolsize)
+    def __str__(self):
+        return "Dividing layer\n"
 
 
-class LayerConvPool3D(Layer):
+class LayerOfBlocks(Layer):
     """
-    3D convolutional layer + pooling layer
+    Layer composed of blocks.
     """
-    def __init__(self, neuron_type, in_channels, in_shape,
-                 flt_channels, flt_shape, poolsize):
-        """
-        Args:
-            image_shape (tuple or list of length 4):
-            (image depth, num input feature maps, image height, image width)
+    def __init__(self, layer_blocks):
+        Layer.__init__(self)
+        self.layer_blocks = layer_blocks
 
-            filter_shape (tuple or list of length 5):
-            (number of filters, filter depth, num input feature maps, filter height,filter width)
-        """
-        Layer.__init__(self, neuron_type)
-        self.name = "3D convolutional + pooling layer"
+        self.params = []
+        for l in self.layer_blocks:
+            self.params += l.params
 
-        in_width, in_height, in_depth = self.in_shape = in_shape
-        flt_depth, flt_height, flt_width = self.flt_shape = flt_shape
-        self.in_channels = in_channels
-        self.flt_channels = flt_channels
+    def forward(self, input_list, batch_size):
+        output_list = []
+        for x, layerBlock in zip(input_list, self.layer_blocks):
+            output_list.append(layerBlock.forward(x, batch_size))
+        return output_list
 
-        self.image_shape = (in_depth, in_channels, in_height, in_width)
-        self.filter_shape = (flt_channels, flt_depth, in_channels, flt_height, flt_width)
-        self.poolsize = poolsize
+    def save_parameters(self, h5file, name):
+        for i, l in enumerate(self.layer_blocks):
+            l.save_parameters(h5file, name + "/block" + str(i))
 
-        self.init_parameters(self.filter_shape, (self.filter_shape[0],))
+    def load_parameters(self, h5file, name):
+        for i, l in enumerate(self.layer_blocks):
+            l.load_parameters(h5file, name + "/block" + str(i))
 
-    def compute_bound_parameters_virtual(self):
-        fan_in = np.prod(self.in_shape)
-        fan_out = self.flt_channels * np.prod(self.flt_shape) / np.prod(self.poolsize)
+    def __str__(self):
+        msg = "Layer composed of the following block(s):\n"
+        for i, l in enumerate(self.layer_blocks):
+            msg += "Block " + str(i) + ":\n" + l.__str__() + "\n"
+        return msg
 
-        return np.sqrt(6. / (fan_in + fan_out))
 
-    def forward(self, x, batch_size):
-        img_batch_shape = (batch_size,) + self.image_shape
-
-        x = x.reshape(img_batch_shape)
-
-        # convolve input feature maps with filters
-        conv_out = conv3d2d.conv3d(signals=x,
-                                   filters=self.w,
-                                   signals_shape=img_batch_shape,
-                                   filters_shape=self.filter_shape,
-                                   border_mode='valid')
-
-        perm = [0, 2, 1, 3, 4]
-        pooled_out = max_pool_3d(conv_out.dimshuffle(perm), self.poolsize, ignore_border=True)
-
-        return self.neuron_type.activation_function(pooled_out.dimshuffle(perm)
-                                                    + self.b.dimshuffle('x', 'x', 0, 'x', 'x')).flatten(2)
-
-    def print_virtual(self):
-        return "Image shape: {} \n Filter shape: {} \n Pool size: {} \n".format(
-            self.image_shape, self.filter_shape, self.poolsize)
+def convert_blocks_into_feed_forward_layers(ls_layer_blocks):
+    """
+    Convert a list of layer blocks into a list of LayerOfBlocks, each one containing a single block.
+    """
+    ls_layers = []
+    for layer_block in ls_layer_blocks:
+        ls_layers.append(LayerOfBlocks([layer_block]))
+    return ls_layers

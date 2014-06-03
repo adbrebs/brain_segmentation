@@ -23,11 +23,11 @@ if __name__ == '__main__':
 
     ### Create the network
     # MLP kind network
-    # net = nn.Network1()
-    # net.init(db.patch_width*db.patch_width, db.n_out_features)
+    net = nn.Network1()
+    net.init(db.patch_width*db.patch_width, db.n_out_features)
     # CNN network
-    net = nn.Network2()
-    net.init(db.patch_width, db.patch_width, db.n_out_features)
+    # net = nn.Network2()
+    # net.init(db.patch_width, db.patch_width, db.n_out_features)
     # net = nn.Network3()
     # net.init(db.patch_width, db.patch_width, db.patch_width, db.n_out_features)
     print net

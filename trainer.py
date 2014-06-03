@@ -43,7 +43,7 @@ class Trainer():
         y_true = T.matrix('y_true')  # True output of a minibatch
 
         # Outpurt of the network
-        y_pred = net.forward(x, self.batch_size)
+        y_pred = net.forward([x], self.batch_size)[0]
 
         # Cost the trainer is going to minimize
         cost = self.mse_symb(y_pred, y_true)

@@ -10,7 +10,7 @@ class CF:
             "n_patch_per_voxel": 1,
             "file_path": file_path,
             "perm": True,
-            "n_data": 100000
+            "n_data": 10000
         }
 
         self.pick_vx = {
