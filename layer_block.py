@@ -17,7 +17,7 @@ class LayerBlock():
     """
     def __init__(self):
         self.name = None
-        self.params = None
+        self.params = []
 
     def forward(self, x, batch_size):
         """Return the output of the layer block

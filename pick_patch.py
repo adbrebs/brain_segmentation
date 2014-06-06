@@ -91,9 +91,17 @@ class PickPatchParallelOrthogonal(PickPatch2D):
             for ax in l:
                 v_other_axis.append(crop(ax, vx_cur))
 
-            x, y = np.meshgrid(v_other_axis[0], v_other_axis[1])
-            idx_patch[i] = np.ravel_multi_index((x.ravel(), np.tile(v_parallel_axis, x.size), y.ravel()), dims)
-            patch[i] = mri[x, v_parallel_axis, y].ravel()
+            a, b = np.meshgrid(v_other_axis[0], v_other_axis[1])
+            l2 = [0]*3
+            l2[l[0]] = a.ravel()
+            l2[l[1]] = b.ravel()
+            l2[self.parallel_axis] = np.tile(v_parallel_axis, a.size)
+            idx_patch[i] = np.ravel_multi_index(tuple(l2), dims)
+            l3 = [0]*3
+            l3[l[0]] = a.ravel()
+            l3[l[1]] = b.ravel()
+            l3[self.parallel_axis] = np.tile(v_parallel_axis, a.size)
+            patch[i] = mri[tuple(l3)].ravel()
 
 
 class PickPatchSlightlyRotated(PickPatch2D):
@@ -159,7 +167,7 @@ class PickPatch3DSimple(PickPatch3D):
     Pick 3D patches centered on the voxels. No rotation
     """
     def __init__(self, patch_width):
-        PickInput.__init__(self, patch_width)
+        PickPatch3D.__init__(self, patch_width)
 
     def pick_virtual3d(self, patch, idx_patch, vx, mri, label):
         dims = mri.shape
@@ -180,3 +188,30 @@ class PickPatch3DSimple(PickPatch3D):
             x, y, z = np.meshgrid(v_axis[0], v_axis[1], v_axis[2])
             idx_patch[i] = np.ravel_multi_index((x.ravel(), y.ravel(), z.ravel()), dims)
             patch[i] = mri[x, y, z].ravel()
+
+
+class PickUltimate(PickInput):
+    def __init__(self, patch_width):
+        PickInput.__init__(self, 3 * patch_width**2 + 3)
+        self.patch_width = patch_width
+        self.pick_xyz = PickXYZ()
+        self.pick_axis0 = PickPatchParallelOrthogonal(patch_width, 0)
+        self.pick_axis1 = PickPatchParallelOrthogonal(patch_width, 1)
+        self.pick_axis2 = PickPatchParallelOrthogonal(patch_width, 2)
+
+    def pick(self, vx, mri, label):
+        n_vx = vx.shape[0]
+        idx_patch = np.zeros((n_vx, self.n_features), dtype=int)
+        patch = np.zeros((n_vx, self.n_features), dtype=np.float32)
+
+        temp = self.patch_width**2
+        s0 = slice(0, temp)
+        patch[:,s0], idx_patch[:,s0] = self.pick_axis0.pick(vx, mri, label)
+        s1 = slice(1*temp, 2*temp)
+        patch[:,s1], idx_patch[:,s1] = self.pick_axis1.pick(vx, mri, label)
+        s2 = slice(2*temp, 3*temp)
+        patch[:,s2], idx_patch[:,s2] = self.pick_axis2.pick(vx, mri, label)
+        s3 = slice(3*temp, 3*temp+3)
+        patch[:,s3], idx_patch[:,s3] = self.pick_xyz.pick(vx, mri, label)
+
+        return patch, idx_patch

@@ -1,5 +1,6 @@
 __author__ = 'adeb'
 
+from collections import OrderedDict
 import numpy as np
 
 import theano
@@ -60,10 +61,12 @@ class LearningUpdateGDMomentum(LearningUpdate):
             raise Exception("Momentum value should be between 0 and 1.")
 
     def compute_updates(self, params, grads):
-        updates = []
+        updates = OrderedDict()
         for param_i, grad_i in zip(params, grads):
+            if param_i in updates:
+                continue
             diff = share(np.zeros(param_i.get_value().shape, dtype=theano.config.floatX), "diff")
             update_diff = self.momentum * diff - self.learning_rate * grad_i
-            updates.append((param_i, param_i + update_diff))
-            updates.append((diff, update_diff))
+            updates[param_i] = param_i + update_diff
+            updates[diff] = update_diff
         return updates
