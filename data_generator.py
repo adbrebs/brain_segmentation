@@ -7,6 +7,7 @@ import theano
 import nibabel as nib
 
 from multiprocess import parmap
+from utilities import distrib_balls_in_bins
 from pick_voxel import *
 from pick_patch import *
 from pick_target import *
@@ -83,12 +84,10 @@ class DataGeneratorBrain(DataGenerator):
     def generate(self, batch_size):
         print "Generate data ..."
 
-        # Compute the number of voxels to extract in each atlas
-        voxels_per_atlas = np.zeros((self.n_files, 1), dtype=int)
-        voxels_per_atlas += batch_size / self.n_files
-        n_voxels_remaining = batch_size % self.n_files
-        rand_idx = np.random.randint(0, self.n_files, (n_voxels_remaining, 1))
-        voxels_per_atlas[rand_idx] += 1
+        ### Initialization of the containers
+
+        # Compute the number of voxels to extract from each atlas
+        voxels_per_atlas = distrib_balls_in_bins(batch_size, self.n_files)
 
         # Initialize the containers
         vx = np.zeros((batch_size, 3), dtype=int)
@@ -97,7 +96,7 @@ class DataGeneratorBrain(DataGenerator):
         tg = np.zeros((batch_size, self.n_out_features), dtype=theano.config.floatX)
         file_id = np.zeros((batch_size, 1), dtype=int)
 
-        # Fill in the containers
+        ### Fill in the containers
 
         # Function that will be run in parallel
         def generate_from_one_brain(atlas_id):

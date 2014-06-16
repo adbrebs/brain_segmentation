@@ -20,6 +20,8 @@ def create_pick_patch(config_ini):
         axis = config_ini.pick_patch["axis"]
         max_degree_rotation = config_ini.pick_patch["max_degree_rotation"]
         pick_patch = PickPatchSlightlyRotated(patch_width, axis, max_degree_rotation)
+    elif how_patch == "ultimate":
+        pick_patch = PickUltimate(patch_width)
     else:
         print "error in pick_patch"
         return
@@ -117,22 +119,34 @@ class PickPatchSlightlyRotated(PickPatch2D):
         dims = mri.shape
         radius = self.patch_width / 2
 
+        # The following part is verifying that we are not leaving the cube
         def crop(j, voxel):
-            li = voxel[j] - radius
-            ls = voxel[j] + radius + 1
-            if li < 0:
-                li = 0
-            if ls >= dims[j]:
-                ls = dims[j]-1
-            return slice(li, ls)
+            s1_inf = voxel[j] - radius
+            s1_sup = voxel[j] + radius + 1
+            s2_inf = 0
+            s2_sup = self.patch_width
+            if s1_inf < 0:
+                s2_inf = -s1_inf
+                s1_inf = 0
+            if s1_sup > dims[j]:
+                s2_sup = self.patch_width - (s1_sup - dims[j])
+                s1_sup = dims[j]
+
+            assert s1_sup - s1_inf == s2_sup - s2_inf
+
+            return slice(s1_inf, s1_sup), slice(s2_inf, s2_sup)
 
         for i in xrange(idx_patch.shape[0]):
             vx_cur = vx[i]
-            v_axis = []
+            ls_slice1 = []
+            ls_slice2 = []
+            cube = np.zeros((self.patch_width,)*3)
             for ax in range(3):
-                v_axis.append(crop(ax, vx_cur))
+                s1, s2 = crop(ax, vx_cur)
+                ls_slice1.append(s1)
+                ls_slice2.append(s2)
 
-            cube = mri[v_axis[0], v_axis[1], v_axis[2]]
+            cube[ls_slice2[0], ls_slice2[1], ls_slice2[2]] = mri[ls_slice1[0], ls_slice1[1], ls_slice1[2]]
             cube = rotate(cube, np.random.uniform(-self.max_degree_rotation, -self.max_degree_rotation), axes=(0, 1))
             cube = rotate(cube, np.random.uniform(-self.max_degree_rotation, -self.max_degree_rotation), axes=(1, 2))
             cube = rotate(cube, np.random.uniform(-self.max_degree_rotation, -self.max_degree_rotation), axes=(2, 0))
@@ -191,13 +205,16 @@ class PickPatch3DSimple(PickPatch3D):
 
 
 class PickUltimate(PickInput):
+    """
+    An input is composed of three orthogonal patches and the three coordinates of the central voxel.
+    """
     def __init__(self, patch_width):
         PickInput.__init__(self, 3 * patch_width**2 + 3)
         self.patch_width = patch_width
         self.pick_xyz = PickXYZ()
-        self.pick_axis0 = PickPatchParallelOrthogonal(patch_width, 0)
-        self.pick_axis1 = PickPatchParallelOrthogonal(patch_width, 1)
-        self.pick_axis2 = PickPatchParallelOrthogonal(patch_width, 2)
+        self.pick_axis0 = PickPatchSlightlyRotated(patch_width, 0, 20)
+        self.pick_axis1 = PickPatchSlightlyRotated(patch_width, 1, 20)
+        self.pick_axis2 = PickPatchSlightlyRotated(patch_width, 2, 20)
 
     def pick(self, vx, mri, label):
         n_vx = vx.shape[0]

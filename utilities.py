@@ -4,8 +4,13 @@ import os
 import sys
 import h5py
 import numpy as np
+import random
 
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 import theano
+import nibabel as nib
 
 
 def load_config(default_file):
@@ -71,6 +76,18 @@ def open_h5file(file_path):
     return h5file
 
 
+def distrib_balls_in_bins(n_balls, n_bins):
+    """
+    Uniformly distribute n_balls in n_bins
+    """
+    balls_per_bin = np.zeros((n_bins,), dtype=int)
+    div, n_balls_remaining = divmod(n_balls, n_bins)
+    balls_per_bin += div
+    rand_idx = np.asarray(random.sample(range(n_bins), n_balls_remaining), dtype=int)
+    balls_per_bin[rand_idx] += 1
+    return balls_per_bin
+
+
 def create_img_from_pred(vx, pred, shape):
     """
     Create a labelled image array from voxels and their predictions
@@ -83,25 +100,26 @@ def create_img_from_pred(vx, pred, shape):
     return pred_img
 
 
-def analyse_data(targets):
+def analyse_targets(targets_scalar, verbose=True):
     """
     Compute various statistics about targets.
     """
 
-    # Number of classes
-    targets_scalar = np.argmax(targets, axis=1)
-    classes = np.unique(targets_scalar)
-    n_classes = len(classes)
-    print("There are {} regions in the dataset".format(n_classes))
+    targets_scalar = targets_scalar[targets_scalar.nonzero()]
 
     a = np.bincount(targets_scalar)
-    b = np.nonzero(a)[0]
-    c = a[b].astype(float, copy=False)
-    c /= sum(c)
+    classes = np.nonzero(a)[0]
+    n_classes = len(classes)
+    if verbose:
+        print("There are {} regions in the dataset".format(n_classes))
+    proportion_volumes = a[classes].astype(float, copy=False)
+    proportion_volumes /= sum(proportion_volumes)
 
-    print("    The largest region represents {} % of the image".format(max(c) * 100))
+    if verbose:
+        print("    The largest region represents {} % of the image".format(max(proportion_volumes) * 100))
+        print("    The smallest region represents {} % of the image".format(min(proportion_volumes) * 100))
 
-    return b, c
+    return classes, proportion_volumes
 
 
 def compute_dice(img_pred, img_true, n_classes_max):
@@ -111,7 +129,7 @@ def compute_dice(img_pred, img_true, n_classes_max):
     classes = np.unique(img_pred)
     if classes[0] == 0:
         classes = classes[1:]
-    dices = np.zeros((n_classes_max, 1))
+    dices = np.zeros((n_classes_max,))
 
     for c in classes:
         class_pred = img_pred == c
@@ -120,3 +138,26 @@ def compute_dice(img_pred, img_true, n_classes_max):
         dices[c] = 2 * np.sum(np.asarray(class_common, dtype=float)) / (np.sum(class_pred) + np.sum(class_true))
 
     return dices
+
+
+def compare_two_seg(pred_seg_path, true_seg_path):
+    pred_seg = nib.load(pred_seg_path).get_data().squeeze()
+    true_seg = nib.load(true_seg_path).get_data().squeeze()
+
+    classes, true_volumes = analyse_targets(np.ravel(true_seg))
+    dices = compute_dice(pred_seg, true_seg, len(classes)+1)
+    dices = dices[1:]
+
+    # Plot dice in function of log volume
+    plt.plot(np.log10(true_volumes), dices, 'ro', label="one region")
+    plt.xlabel('Log-volume of the region')
+    plt.ylabel('Dice coefficient of the region')
+    plt.savefig("./analysis/log_volume.png")
+
+    # Plot dice in function of the sorted indices of the regions
+    plt.figure()
+    idx = np.argsort(dices)
+    plt.plot(idx, dices[idx], 'ro', label="one region")
+    plt.xlabel('Sorted indices of the regions (the higher the bigger the region)')
+    plt.ylabel('Dice coefficient of the sorted region')
+    plt.savefig("./analysis/dices_sorted.png")

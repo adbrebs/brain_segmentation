@@ -11,7 +11,7 @@ from pick_target import *
 def create_dataset(file_path, patch_width, n_data, miccai_folder):
     # Create the data generator
     select_region = SelectWholeBrain()
-    extract_voxel = ExtractVoxelRandomly(1)
+    extract_voxel = ExtractVoxelBalanced(1)
     pick_vx = PickVoxel(select_region, extract_voxel)
     pick_patch = PickUltimate(patch_width)
     pick_tg = PickTgCentered()
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     patch_width = 29
 
     file_path_train = "./data/ultimate_train.h5"
-    n_data_train = 100000
+    n_data_train = 1000000
     miccai_folder_train = "1"
     create_dataset(file_path_train, patch_width, n_data_train, miccai_folder_train)
 

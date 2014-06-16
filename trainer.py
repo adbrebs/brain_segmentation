@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 import theano
 import theano.tensor as T
 
-from utilities import analyse_data
+from utilities import analyse_targets
 import learning_update
 
 
@@ -22,7 +22,7 @@ class Trainer():
         self.net = net
         self.folder_path = config.folder_path
 
-        analyse_data(ds.train_out.get_value())
+        analyse_targets(np.argmax(ds.train_out.get_value(), axis=1))
 
         # Scale the data
         if scale:

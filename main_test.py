@@ -6,7 +6,7 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import nibabel
 
-from utilities import create_img_from_pred, compute_dice
+from utilities import create_img_from_pred, compute_dice, analyse_targets
 from network import load_network
 import trainer
 from pick_patch import *
@@ -16,9 +16,11 @@ from data_generator import list_miccai_files, crop_image
 
 def evaluate_network_on_dataset(net, pick_patch, pick_tg, n_classes):
     file_list = list_miccai_files("2")
-    dices = 0
-    for file in file_list:
-        dices += evaluate_network_on_brain(net, file[0], file[1], pick_patch, pick_tg, n_classes)
+    dice_regions = 0
+    for file in file_list[0:1]:
+        dice_regions += evaluate_network_on_brain(net, file[0], file[1], pick_patch, pick_tg, n_classes)
+
+    print "mean dice" + str(dice_regions.mean())
 
 
 def evaluate_network_on_brain(net, mri_file, label_file, pick_patch, pick_tg, n_classes):
@@ -30,15 +32,17 @@ def evaluate_network_on_brain(net, mri_file, label_file, pick_patch, pick_tg, n_
     mri = nibabel.load(mri_file).get_data().squeeze()
     lab = nibabel.load(label_file).get_data().squeeze()
     mri, lab = crop_image(mri, lab)
+    affine = nibabel.load(label_file).get_affine()
 
     is_scan_finished = False
     ls_vx = []
     ls_pred = []
-    batch_size = 100000
+    batch_size = 1000
     pred_function = net.generate_testing_function(batch_size)
     idx_brain = lab.ravel().nonzero()[0]
     n_vx = len(idx_brain)
     cur_idx = 0
+
     while not is_scan_finished:
         next_idx = cur_idx + batch_size
         print "\r     voxels [{} - {}] / {}".format(cur_idx, next_idx, n_vx)
@@ -82,8 +86,11 @@ def evaluate_network_on_brain(net, mri_file, label_file, pick_patch, pick_tg, n_
 
     img_true = lab
     img_pred = create_img_from_pred(vx_all, pred_all, img_true.shape)
-    dices = compute_dice(img_pred, img_true, n_classes)
-    print dices
+    dice_regions = compute_dice(img_pred, img_true, n_classes)
+
+    img_pred_nifti = nibabel.Nifti1Image(img_pred, affine)
+    nibabel.save(img_pred_nifti, 'new_image.nii')
+    print dice_regions
 
     ### Save the brain images
     # file_name = "test.png"
@@ -99,7 +106,7 @@ def evaluate_network_on_brain(net, mri_file, label_file, pick_patch, pick_tg, n_
     end_time = time.clock()
     print "It took {} seconds to evaluate the whole brain.".format(end_time - start_time)
 
-    return dices
+    return dice_regions
 
 
 if __name__ == '__main__':
@@ -108,10 +115,10 @@ if __name__ == '__main__':
     n_classes = 139
 
     ### Load the network
-    net = load_network("net4.net")
+    net = load_network("./experiments/essai_lot_data/net.net")
 
     # Options for the dataset
-    pick_patch = PickPatchParallelOrthogonal(patch_width, 1)
+    pick_patch = pick_patch = PickUltimate(patch_width)  # PickPatchParallelOrthogonal(patch_width, 1)
     pick_tg = PickTgCentered()
 
     evaluate_network_on_dataset(net, pick_patch, pick_tg, n_classes)

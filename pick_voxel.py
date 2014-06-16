@@ -2,6 +2,8 @@ __author__ = 'adeb'
 
 import numpy as np
 
+from utilities import distrib_balls_in_bins
+
 
 def create_pick_voxel(config_ini):
     """
@@ -74,15 +76,19 @@ class SelectWholeBrain(SelectRegion):
 
 
 class SelectPlane(SelectRegion):
-    def __init__(self, axis, plane):
+    """
+    Select a specific orthogonal plane defined by an axis (the plane is orthogonal to this axis) and a specific axis
+    coordinate.
+    """
+    def __init__(self, axis, axis_coordinate):
         SelectRegion.__init__(self)
         self.axis = axis
-        self.plane = plane
+        self.axis_coordinate = axis_coordinate
 
     def select(self, label):
         plan = np.zeros(label.shape, dtype=float)
         slice_axis = [slice(None)] * 3
-        slice_axis[self.axis] = self.plane
+        slice_axis[self.axis] = self.axis_coordinate
         plan[slice_axis] = label[slice_axis]
         return plan.ravel().nonzero()[0]
 
@@ -128,15 +134,22 @@ class ExtractVoxelBalanced(ExtractVoxel):
         ExtractVoxel.__init__(self, n_repeat)
 
     def extract_virtual(self, n_vx, idx_region, region):
-        classes_present = np.unique(region)
-        n_classes_present = len(classes_present)
-        n_vx_per_class = n_vx / n_classes_present
         vx_idx = np.zeros((n_vx,), dtype=int)
 
+        # Compute the number of voxels for each region
+        classes_present = np.unique(region)
+        n_classes_present = len(classes_present)
+        voxels_per_region = distrib_balls_in_bins(n_vx, n_classes_present)
+
+        vx_counter = 0
         for id_k, k in enumerate(classes_present):
+            if voxels_per_region[id_k] == 0:
+                continue
             sub_region = np.where(region == k)[0]
-            r = np.random.randint(len(sub_region), size=n_vx_per_class)
-            vx_idx[id_k * n_vx_per_class:(id_k+1)*n_vx_per_class] = idx_region[sub_region[r]]
+            r = np.random.randint(len(sub_region), size=voxels_per_region[id_k])
+            vx_counter_next = vx_counter + voxels_per_region[id_k]
+            vx_idx[vx_counter:vx_counter_next] = idx_region[sub_region[r]]
+            vx_counter = vx_counter_next
 
         return vx_idx
 

@@ -10,7 +10,7 @@ from theano import tensor as T
 from utilities import get_h5file_attribute, get_h5file_data
 from layer import *
 from layer_block import *
-import neurons
+import neuron_type
 from dataset import open_h5file
 
 
@@ -63,7 +63,7 @@ class Network(object):
             (function): function to returns the output of the network for a given input batch
         """
         x = T.matrix('x')  # Minibatch input matrix
-        y_pred = self.forward(x, batch_size)  # Output of the network
+        y_pred = self.forward([x], batch_size)[0]  # Output of the network
         return theano.function([x], y_pred)
 
     def predict(self, inputs):
@@ -191,24 +191,11 @@ class Network1(Network):
 
         neuron_type = neurons.NeuronRELU()
 
-        self.layers = []
+        block0 = LayerBlockFullyConnected(neuron_type, n_in, 10)
+        block1 = LayerBlockFullyConnected(neuron_type, 10, 10)
+        block2 = LayerBlockFullyConnected(neuron_type.NeuronSoftmax(), 10, n_out)
 
-        # Layer 0
-        l1 = 300
-        l2 = 841
-        self.layers.append(LayerDivide([0, l1, l2]))
-
-        # Layer 1
-        block0 = LayerBlockFullyConnected(neuron_type, l1, 5)
-        block1 = LayerBlockFullyConnected(neuron_type, l2 - l1, 5)
-        self.layers.append(LayerOfBlocks([block0, block1]))
-
-        # Layer 2
-        self.layers.append(LayerMerge())
-
-        # Layer 3
-        block0 = LayerBlockFullyConnected(neurons.NeuronSoftmax(), 10, n_out)
-        self.layers.append(LayerOfBlocks([block0]))
+        self.layers = convert_blocks_into_feed_forward_layers([block0, block1, block2])
 
         self.params = []
         for l in self.layers:
@@ -236,7 +223,7 @@ class Network2(Network):
         self.in_height = patch_height
         self.in_width = patch_width
 
-        neuron_relu = neurons.NeuronRELU()
+        neuron_relu = neuron_type.NeuronRELU()
 
         # Layer 0
         kernel_height0 = 5
@@ -270,7 +257,7 @@ class Network2(Network):
         block2 = LayerBlockFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
 
         # Layer 3
-        block3 = LayerBlockFullyConnected(neurons.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
+        block3 = LayerBlockFullyConnected(neuron_type.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
 
         self.layers = convert_blocks_into_feed_forward_layers([block0, block1, block2, block3])
 
@@ -305,7 +292,7 @@ class Network3(Network):
         self.in_width = patch_width
         self.in_depth = patch_depth
 
-        neuron_relu = neurons.NeuronRELU()
+        neuron_relu = neuron_type.NeuronRELU()
 
         # Layer 0
         filter_map_0_shape = np.array([patch_height, patch_width, patch_depth], dtype=int)
@@ -334,7 +321,7 @@ class Network3(Network):
         block2 = LayerBlockFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
 
         # Layer 3
-        block3 = LayerBlockFullyConnected(neurons.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
+        block3 = LayerBlockFullyConnected(neuron_type.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
 
         self.layers = convert_blocks_into_feed_forward_layers([block0, block1, block2, block3])
 
@@ -367,7 +354,7 @@ class NetworkUltimate(Network):
         self.in_width = patch_width
 
         self.layers = []
-        neuron_relu = neurons.NeuronRELU()
+        neuron_relu = neuron_type.NeuronRELU()
 
         # Layer 0
         l1 = patch_width ** 2
@@ -426,7 +413,7 @@ class NetworkUltimate(Network):
         self.layers.append(LayerOfBlocks([block0]))
 
         # Layer 5
-        block0 = LayerBlockFullyConnected(neurons.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
+        block0 = LayerBlockFullyConnected(neuron_type.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
         self.layers.append(LayerOfBlocks([block0]))
 
         self.params = []
@@ -441,3 +428,119 @@ class NetworkUltimate(Network):
         self.in_height = int(h5file.attrs["in_height"])
         self.in_width = int(h5file.attrs["in_width"])
         self.init(self.in_height, self.in_width, self.n_out)
+
+
+class NetworkUltimateNoShare(Network):
+    def __init__(self):
+        Network.__init__(self)
+        self.in_width = None
+        self.in_height = None
+
+    def init(self, patch_height, patch_width, n_out):
+        Network.init_common(self, patch_height*patch_width, n_out)
+
+        self.in_height = patch_height
+        self.in_width = patch_width
+
+        self.layers = []
+        neuron_relu = neuron_type.NeuronRELU()
+
+        # Layer 0
+        l1 = patch_width ** 2
+        l2 = l1 * 2
+        l3 = l1 * 3
+        l4 = l3 + 3
+        self.layers.append(LayerDivide([0, l1, l2, l3, l4]))
+
+        # Layer 1
+        kernel_height0 = 5
+        kernel_width0 = 5
+        pool_size_height0 = 2
+        pool_size_width0 = 2
+        n_kern0 = 10
+        block0 = LayerBlockConvPool2D(neuron_relu,
+                                      image_shape=(1, patch_height, patch_width),
+                                      filter_shape=(n_kern0, 1, kernel_height0, kernel_width0),
+                                      poolsize=(pool_size_height0, pool_size_width0))
+        block1 = LayerBlockConvPool2D(neuron_relu,
+                                      image_shape=(1, patch_height, patch_width),
+                                      filter_shape=(n_kern0, 1, kernel_height0, kernel_width0),
+                                      poolsize=(pool_size_height0, pool_size_width0))
+        block2 = LayerBlockConvPool2D(neuron_relu,
+                                      image_shape=(1, patch_height, patch_width),
+                                      filter_shape=(n_kern0, 1, kernel_height0, kernel_width0),
+                                      poolsize=(pool_size_height0, pool_size_width0))
+        block3 = LayerBlockIdentity()
+
+        self.layers.append(LayerOfBlocks([block0, block1, block2, block1]))
+
+        # Layer 2
+        filter_map_height1 = (patch_height - kernel_height0 + 1) / pool_size_height0
+        filter_map_width1 = (patch_width - kernel_width0 + 1) / pool_size_width0
+        kernel_height1 = 5
+        kernel_width1 = 5
+        pool_size_height1 = 2
+        pool_size_width1 = 2
+        n_kern1 = 20
+        block0 = LayerBlockConvPool2D(neuron_relu,
+                                      image_shape=(n_kern0, filter_map_height1, filter_map_width1),
+                                      filter_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
+                                      poolsize=(pool_size_height1, pool_size_width1))
+        block1 = LayerBlockConvPool2D(neuron_relu,
+                                      image_shape=(n_kern0, filter_map_height1, filter_map_width1),
+                                      filter_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
+                                      poolsize=(pool_size_height1, pool_size_width1))
+        block2 = LayerBlockConvPool2D(neuron_relu,
+                                      image_shape=(n_kern0, filter_map_height1, filter_map_width1),
+                                      filter_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
+                                      poolsize=(pool_size_height1, pool_size_width1))
+        block3 = LayerBlockIdentity()
+
+        self.layers.append(LayerOfBlocks([block0, block1, block2, block3]))
+
+        # Layer 3
+        self.layers.append(LayerMerge())
+
+        # Layer 4
+        filter_map_height2 = (filter_map_height1 - kernel_height1 + 1) / pool_size_height1
+        filter_map_with2 = (filter_map_width1 - kernel_width1 + 1) / pool_size_width1
+        n_in2 = 3 * n_kern1 * filter_map_height2 * filter_map_with2 + 3
+        n_out2 = 500
+        block0 = LayerBlockFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
+        self.layers.append(LayerOfBlocks([block0]))
+
+        # Layer 5
+        block0 = LayerBlockFullyConnected(neuron_type.NeuronSoftmax(), n_in=n_out2, n_out=self.n_out)
+        self.layers.append(LayerOfBlocks([block0]))
+
+        self.params = []
+        for l in self.layers:
+            self.params += l.params
+
+    def save_parameters_virtual(self, h5file):
+        h5file.attrs['in_height'] = self.in_height
+        h5file.attrs['in_width'] = self.in_width
+
+    def load_parameters_virtual(self, h5file):
+        self.in_height = int(h5file.attrs["in_height"])
+        self.in_width = int(h5file.attrs["in_width"])
+        self.init(self.in_height, self.in_width, self.n_out)
+
+
+def load_network(net_path):
+    """
+    Factory function to create a network from a network file
+    """
+    h5file = open_h5file(net_path)
+
+    network_type_str = get_h5file_attribute(h5file, "network_type")
+    try:
+        network_type = [cls for cls in Network.__subclasses__() if cls.__name__ == network_type_str][0]
+    except IndexError:
+        raise Exception("The network is not defined")
+
+    net = network_type()
+    net.load_parameters(h5file)
+    h5file.close()
+
+    return net
