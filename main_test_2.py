@@ -1,18 +1,9 @@
 __author__ = 'adeb'
 
-import time
 import matplotlib
 matplotlib.use('Agg')
-from matplotlib import pyplot as plt
-import nibabel
 
-from utilities import compare_two_seg
-from network import load_network
-import trainer
-from pick_patch import *
-from pick_target import *
-from data_generator import list_miccai_files, crop_image
-
+from spynet.utils.utilities import compare_two_seg
 
 if __name__ == '__main__':
 

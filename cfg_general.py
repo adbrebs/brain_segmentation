@@ -1,21 +1,24 @@
 __author__ = 'adeb'
 
-import time
 from shutil import copy2
 import inspect
 
-from utilities import create_directories
+from spynet.utils.utilities import create_directories
+from spynet.models.network import lookup_network
+
+
+############################################################
+############# this part can be modified ####################
+############################################################
 
 ### General
-experiment_name = "essai_lot_data_rotated_20"
+experiment_name = "allez_la"  # Folder that will contain the results of an experiment
 
 ### Datasets
-create_data = True
-data_path = "./data/"
-training_data_path = data_path + "ultimate_train_rotated.h5"
-testing_data_path = data_path + "ultimate_test_rotated.h5"
-
-prop_validation = 0.3
+data_path = "./datasets/ultimate/"
+training_data_path = data_path + "train.h5"
+testing_data_path = data_path + "test.h5"
+prop_validation = 0.3  # Percentage of the training dataset that is used for validation (early stopping)
 
 ### Training parameters
 batch_size = 200
@@ -27,24 +30,12 @@ learning_rate = 0.13
 momentum = 0.5
 
 
-####################################################
-############# this part should not be modified
-####################################################
+############################################################
+############# this part should not be modified #############
+############################################################
 
-folder_path = create_directories(experiment_name)
-net_path = folder_path + "net.net"
+experiment_path = create_directories(experiment_name)
+net_path = experiment_path + "net.net"
 
-
-# Copy the config file
-copy2(inspect.getfile(inspect.currentframe()), folder_path)
-
-# Create the dataset configs if needed
-if create_data:
-    cf_training_file = "cfg_training_data_creation"
-    cf_testing_file = "cfg_testing_data_creation"
-    copy2(cf_training_file + ".py", folder_path)
-    copy2(cf_testing_file + ".py", folder_path)
-    cfg_train = __import__(cf_training_file)
-    cfg_test = __import__(cf_testing_file)
-    cfg_train.general["file_path"] = training_data_path
-    cfg_test.general["file_path"] = testing_data_path
+# Copy the config file into the experiment path
+copy2(inspect.getfile(inspect.currentframe()), experiment_path)

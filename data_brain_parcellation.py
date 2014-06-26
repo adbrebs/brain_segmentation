@@ -1,27 +1,19 @@
 __author__ = 'adeb'
 
-import sys
 import os
 import glob
-import theano
+import numpy as np
 import nibabel as nib
+import theano
 
-from multiprocess import parmap
-from utilities import distrib_balls_in_bins
-from pick_voxel import *
-from pick_patch import *
-from pick_target import *
-
-
-class DataGenerator():
-    """
-    Class that generates data on the fly.
-    """
-    def __init__(self):
-        pass
-
-    def generate(self, batch_size):
-        pass
+from spynet.utils.utilities import distrib_balls_in_bins
+from spynet.utils.multiprocess import parmap
+from spynet.data.data_generator import DataGenerator
+from spynet.data.database import DataBase
+from spynet.data.dataset import Dataset
+from spynet.data.utils_3d.pick_patch import create_pick_patch
+from spynet.data.utils_3d.pick_voxel import create_pick_voxel
+from spynet.data.utils_3d.pick_target import create_pick_target
 
 
 class DataGeneratorBrain(DataGenerator):
@@ -126,9 +118,9 @@ def list_miccai_files(source_folder):
     """
     List the the pairs (mri_file_name, label_file_name) of the miccai data.
     """
-    mri_files = glob.glob("./data/miccai/" + source_folder + "/mri/*.nii")
+    mri_files = glob.glob("./datasets/miccai/" + source_folder + "/mri/*.nii")
     n_files = len(mri_files)
-    label_path = "./data/miccai/" + source_folder + "/label/"
+    label_path = "./datasets/miccai/" + source_folder + "/label/"
 
     return [(mri_files[i], label_path + os.path.basename(mri_files[i]))
             for i in xrange(0, n_files)]
@@ -171,3 +163,103 @@ def crop_image(mri, lab):
     lab = lab[lim0, lim1, lim2]
 
     return mri, lab
+
+
+class DatasetBrainParcellation(Dataset):
+    """
+    Specialized dataset class for the brain parcellation data.
+    Attributes:
+        idx_patch(array n_patches x n_in_features): Array containing the indices of the voxels of the patches
+        vx(array n_data x 3): Array containing the coordinates x, y, z of the voxels
+        file_id(array n_data x 3): Array containing the file id of the datapoint
+    """
+    def __init__(self):
+        Dataset.__init__(self)
+
+        self.patch_width = None
+        self.n_patch_per_voxel = 1
+
+        # Initialize the additional containers
+        self.idx_patch = None
+        self.vx = None
+        self.file_id = None
+
+    def populate_from_config(self, config):
+        data_generator = DataGeneratorBrain()
+        data_generator.init_from_config(config)
+        vx, inputs, idx_patch, outputs, file_id = data_generator.generate(config.general["n_data"])
+        self.populate(inputs, outputs, vx, idx_patch, file_id, config.pick_patch["patch_width"])
+        self.shuffle_data()
+
+    def populate(self, inputs, outputs, vx, idx_patch, file_id, patch_width):
+        Dataset.populate_common(self, inputs, outputs)
+        self.vx = vx
+        self.idx_patch = idx_patch
+        self.file_id = file_id
+        self.patch_width = patch_width
+
+    def shuffle_data_virtual(self, perm):
+        self.idx_patch = self.idx_patch[perm]
+        self.vx = self.vx[perm]
+        self.file_id = self.file_id[perm]
+
+    def write_virtual(self, h5file):
+
+        h5file.create_dataset("voxels", data=self.vx, dtype='f')
+        h5file.create_dataset("idx_patches", data=self.idx_patch, dtype='f')
+        h5file.create_dataset("file_id", data=self.file_id, dtype='f')
+
+        h5file.attrs['n_patch_per_voxel'] = self.n_patch_per_voxel
+        h5file.attrs['patch_width'] = self.patch_width
+
+    def read_virtual(self, h5file):
+
+        self.vx = h5file["voxels"].value
+        self.idx_patch = h5file["idx_patches"].value
+        self.file_id = h5file["file_id"].value
+
+        self.n_patch_per_voxel = int(h5file.attrs["n_patch_per_voxel"])
+        self.patch_width = int(h5file.attrs["patch_width"])
+
+
+def generate_and_save(config):
+    file_path = config.general["file_path"]
+    ds = DatasetBrainParcellation()
+    ds.populate_from_config(config)
+    ds.write(file_path)
+
+
+class DataBaseBrainParcellation(DataBase):
+    """
+    Attributes:
+        patch_width (int): width of an input patch
+        n_patch_per_voxel_testing (int): number of patches per unique voxel in the testing data set. This allows the
+            output of a voxel to be predicted from several patches.
+    """
+    def __init__(self):
+        DataBase.__init__(self)
+
+        self.patch_width = None
+        self.n_patch_per_voxel_testing = None
+
+    def load_datasets(self, config):
+
+        training_data_file = config.training_data_path
+        testing_data_file = config.testing_data_path
+
+        print '... loading data ' + training_data_file + ' and ' + testing_data_file
+
+        # Load training and testing data
+        training_data = DatasetBrainParcellation()
+        training_data.read(training_data_file)
+        testing_data = DatasetBrainParcellation()
+        testing_data.read(testing_data_file)
+        if training_data.n_in_features != testing_data.n_in_features:
+            raise Exception("The training and testing datasets do not have the same number of input features")
+        if training_data.n_out_features != testing_data.n_out_features:
+            raise Exception("The training and testing datasets do not have the same number of outputs")
+
+        self.patch_width = training_data.patch_width
+        self.n_patch_per_voxel_testing = testing_data.n_patch_per_voxel
+
+        return training_data, testing_data

@@ -1,10 +1,9 @@
 __author__ = 'adeb'
 
-from utilities import load_config, create_directories
-from database import DataBaseBrainParcellation
-from dataset import generate_and_save
-import network as nn
-from trainer import Trainer
+from spynet.utils.utilities import load_config
+from data_brain_parcellation import DataBaseBrainParcellation
+from spynet.models.network import Network1
+from spynet.training.trainer import Trainer
 
 
 if __name__ == '__main__':
@@ -12,18 +11,13 @@ if __name__ == '__main__':
     ### Load the config file
     training_cf = load_config("cfg_general")
 
-    ### Create datasets if specified
-    if training_cf.create_data:
-        generate_and_save(training_cf.cfg_train)
-        generate_and_save(training_cf.cfg_test)
-
     ### Create the database
     db = DataBaseBrainParcellation()
-    db.init_from_config(training_cf)
+    db.init(training_cf.prop_validation, training_cf)
 
     ### Create the network
-    net = nn.NetworkUltimate()
-    net.init(db.patch_width, db.patch_width, db.n_out_features)
+    net = Network1()
+    net.init(n_in=29**2, n_out=139)
     print net
 
     ### Train the network

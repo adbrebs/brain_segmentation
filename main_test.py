@@ -6,12 +6,12 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import nibabel
 
-from utilities import create_img_from_pred, compute_dice, analyse_targets
-from network import load_network
-import trainer
-from pick_patch import *
-from pick_target import *
-from data_generator import list_miccai_files, crop_image
+from spynet.utils.utilities import create_img_from_pred, compute_dice, analyse_targets
+from spynet.models.network import load_network
+import spynet.training.trainer as trainer
+from spynet.data.utils_3d.pick_patch import *
+from spynet.data.utils_3d.pick_target import *
+from data_brain_parcellation import list_miccai_files, crop_image
 
 
 def evaluate_network_on_dataset(net, pick_patch, pick_tg, n_classes):
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     net = load_network("./experiments/essai_lot_data/net.net")
 
     # Options for the dataset
-    pick_patch = pick_patch = PickUltimate(patch_width)  # PickPatchParallelOrthogonal(patch_width, 1)
+    pick_patch = PickUltimate(patch_width)  # PickPatchParallelOrthogonal(patch_width, 1)
     pick_tg = PickTgCentered()
 
     evaluate_network_on_dataset(net, pick_patch, pick_tg, n_classes)

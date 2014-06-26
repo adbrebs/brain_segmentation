@@ -1,0 +1,3 @@
+[submodule "spynet"]
+	path = spynet
+	url = https://github.com/adbrebs/spynet.git
