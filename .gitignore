@@ -72,3 +72,4 @@ docs/_build/
 *.png
 meg/
 experiments/
+datasets/
