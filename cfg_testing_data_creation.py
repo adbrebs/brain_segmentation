@@ -5,12 +5,12 @@ from shutil import copy2
 import inspect
 
 
-data_path = "./datasets/ultimate/"
+data_path = "./datasets/test/"
 
 
 general = {
     "source": "miccai",
-    "source_folder": "2",
+    "source_kwargs": {"mode": "miccai_challenge", "source_folder": "2"},
     "n_patch_per_voxel": 1,
     "file_path": data_path + "test.h5",
     "perm": False,

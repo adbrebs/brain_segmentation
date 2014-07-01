@@ -8,15 +8,13 @@ import theano
 
 from spynet.utils.utilities import distrib_balls_in_bins
 from spynet.utils.multiprocess import parmap
-from spynet.data.data_generator import DataGenerator
-from spynet.data.database import DataBase
 from spynet.data.dataset import Dataset
 from spynet.data.utils_3d.pick_patch import create_pick_patch
 from spynet.data.utils_3d.pick_voxel import create_pick_voxel
 from spynet.data.utils_3d.pick_target import create_pick_target
 
 
-class DataGeneratorBrain(DataGenerator):
+class DataGeneratorBrain():
     """
     Attributes:
         pick_vx(function): Function to pick voxels
@@ -31,7 +29,6 @@ class DataGeneratorBrain(DataGenerator):
         n_patch_per_voxel (int): Number of patches per voxel
     """
     def __init__(self):
-        DataGenerator.__init__(self)
 
         self.pick_vx = None
         self.pick_patch = None
@@ -48,7 +45,7 @@ class DataGeneratorBrain(DataGenerator):
         self.pick_vx = create_pick_voxel(config)
         self.pick_patch = create_pick_patch(config)
         self.pick_tg = create_pick_target(config)
-        self.files = list_miccai_files(config.general["source_folder"])
+        self.files = list_miccai_files(**config.general["source_kwargs"])
         self.n_patch_per_voxel = config.general["n_patch_per_voxel"]
         self.__init_common()
 
@@ -102,7 +99,10 @@ class DataGeneratorBrain(DataGenerator):
             return vx, patch, idx_patch, tg, atlas_id
 
         # Generate the patches in parallel
-        res_all = parmap(generate_from_one_brain, range(self.n_files))
+        if self.n_files == 1:  # This special case is necessary to avoid a bug on the server
+            res_all = map(generate_from_one_brain, range(self.n_files))
+        else:
+            res_all = parmap(generate_from_one_brain, range(self.n_files))
 
         # Aggregate the data
         idx1 = 0
@@ -114,16 +114,40 @@ class DataGeneratorBrain(DataGenerator):
         return vx, patch, idx_patch, tg, file_id
 
 
-def list_miccai_files(source_folder):
+def list_miccai_files(**kwargs):
     """
     List the the pairs (mri_file_name, label_file_name) of the miccai data.
     """
-    mri_files = glob.glob("./datasets/miccai/" + source_folder + "/mri/*.nii")
-    n_files = len(mri_files)
-    label_path = "./datasets/miccai/" + source_folder + "/label/"
+    mode = kwargs["mode"]
+    if mode == "miccai_challenge":
+        source_folder = kwargs["source_folder"]
+        mri_files = glob.glob("./datasets/miccai/" + source_folder + "/mri/*.nii")
+        mri_files.sort()
+        n_files = len(mri_files)
+        label_path = "./datasets/miccai/" + source_folder + "/label/"
 
-    return [(mri_files[i], label_path + os.path.basename(mri_files[i]))
-            for i in xrange(0, n_files)]
+        return [(mri_files[i], label_path + os.path.basename(mri_files[i]))
+                for i in xrange(0, n_files)]
+    elif mode == "idx_files":
+        idx_files = kwargs["idx_files"]
+        mri_files = glob.glob("./datasets/miccai/1/mri/*.nii")
+        n_files = len(mri_files)
+        label_path = "./datasets/miccai/1/label/"
+
+        list1 = [(mri_files[i], label_path + os.path.basename(mri_files[i]))
+                 for i in xrange(0, n_files)]
+
+        mri_files = glob.glob("./datasets/miccai/2/mri/*.nii")
+        n_files = len(mri_files)
+        label_path = "./datasets/miccai/2/label/"
+
+        list2 = [(mri_files[i], label_path + os.path.basename(mri_files[i]))
+                 for i in xrange(0, n_files)]
+
+        list3 = list1 + list2
+        list3.sort()
+
+        return [list3[i] for i in idx_files]
 
 
 def crop_image(mri, lab):
@@ -192,7 +216,8 @@ class DatasetBrainParcellation(Dataset):
         self.shuffle_data()
 
     def populate(self, inputs, outputs, vx, idx_patch, file_id, patch_width):
-        Dataset.populate_common(self, inputs, outputs)
+        self.inputs = inputs
+        self.outputs = outputs
         self.vx = vx
         self.idx_patch = idx_patch
         self.file_id = file_id
@@ -204,7 +229,6 @@ class DatasetBrainParcellation(Dataset):
         self.file_id = self.file_id[perm]
 
     def write_virtual(self, h5file):
-
         h5file.create_dataset("voxels", data=self.vx, dtype='f')
         h5file.create_dataset("idx_patches", data=self.idx_patch, dtype='f')
         h5file.create_dataset("file_id", data=self.file_id, dtype='f')
@@ -213,7 +237,6 @@ class DatasetBrainParcellation(Dataset):
         h5file.attrs['patch_width'] = self.patch_width
 
     def read_virtual(self, h5file):
-
         self.vx = h5file["voxels"].value
         self.idx_patch = h5file["idx_patches"].value
         self.file_id = h5file["file_id"].value
@@ -221,45 +244,16 @@ class DatasetBrainParcellation(Dataset):
         self.n_patch_per_voxel = int(h5file.attrs["n_patch_per_voxel"])
         self.patch_width = int(h5file.attrs["patch_width"])
 
+    def duplicate_dataset_slice_virtual(self, ds, slice_idx):
+        ds.vx = self.vx[slice_idx]
+        ds.idx_patch = self.idx_patch[slice_idx]
+        ds.file_id = self.file_id
+        ds.patch_width = self.patch_width
+        pass
+
 
 def generate_and_save(config):
     file_path = config.general["file_path"]
     ds = DatasetBrainParcellation()
     ds.populate_from_config(config)
     ds.write(file_path)
-
-
-class DataBaseBrainParcellation(DataBase):
-    """
-    Attributes:
-        patch_width (int): width of an input patch
-        n_patch_per_voxel_testing (int): number of patches per unique voxel in the testing data set. This allows the
-            output of a voxel to be predicted from several patches.
-    """
-    def __init__(self):
-        DataBase.__init__(self)
-
-        self.patch_width = None
-        self.n_patch_per_voxel_testing = None
-
-    def load_datasets(self, config):
-
-        training_data_file = config.training_data_path
-        testing_data_file = config.testing_data_path
-
-        print '... loading data ' + training_data_file + ' and ' + testing_data_file
-
-        # Load training and testing data
-        training_data = DatasetBrainParcellation()
-        training_data.read(training_data_file)
-        testing_data = DatasetBrainParcellation()
-        testing_data.read(testing_data_file)
-        if training_data.n_in_features != testing_data.n_in_features:
-            raise Exception("The training and testing datasets do not have the same number of input features")
-        if training_data.n_out_features != testing_data.n_out_features:
-            raise Exception("The training and testing datasets do not have the same number of outputs")
-
-        self.patch_width = training_data.patch_width
-        self.n_patch_per_voxel_testing = testing_data.n_patch_per_voxel
-
-        return training_data, testing_data
