@@ -1,48 +1,47 @@
 __author__ = 'adeb'
 
-import os
-from shutil import copy2
-import inspect
-
-
-data_path = "./datasets/test/"
-
+data_path = "./datasets/final_3_compressed_patches_random/"
 
 general = {
     "source": "miccai",
-    "source_kwargs": {"mode": "miccai_challenge", "source_folder": "2"},
-    "n_patch_per_voxel": 1,
+    "source_kwargs": {"mode": "folder", "path": "./datasets/miccai/1/"},
     "file_path": data_path + "test.h5",
     "perm": False,
-    "n_data": 10000
+    "n_data": 40000
 }
 
 pick_vx = {
     "where": "anywhere",  # anywhere, plane
     "plane": 100,
     "axis": 1,
-    "how": "balanced"  # all, random, balanced
+    "how": "random"  # all, random, balanced
 }
 
-pick_patch = {
-    "how": "2Dortho",  # 2Dortho, 2DorthoRotated, 3D, ultimate
-    "patch_width": 29,
-    "axis": 1,
-    "max_degree_rotation": 30
-}
+pick_features = [
+    # types: 2Dortho, 3D, centroid
+    {
+        "how": "2Dortho",  # 2Dortho, 2DorthoRotated, 3D, three_patches, local_global, grid_patches
+        "patch_width": 29,
+        "axis": [0, 1, 2],
+        "scale": 3
+    },
+    # {
+    #     "how": "2Dortho",  # 2Dortho, 2DorthoRotated, 3D, three_patches, local_global, grid_patches
+    #     "patch_width": 29,
+    #     "axis": [0, 1, 2],
+    #     "scale": 3
+    # },
+    # {
+    #     "how": "3D",  # 2Dortho, 2DorthoRotated, 3D, three_patches, local_global, grid_patches
+    #     "patch_width": 13,
+    #     "scale": 1
+    # },
+    # {
+    #     "how": "centroid",  # 2Dortho, 2DorthoRotated, 3D, three_patches, local_global, grid_patches
+    #     "n_features": 134
+    # }
+]
 
 pick_tg = {
     "how": "center"  # center, proportion
 }
-
-
-############################################################
-############# this part should not be modified #############
-############################################################
-
-# Create the folder if it does not exist
-if not os.path.exists(data_path):
-    os.makedirs(data_path)
-
-# Copy the config file
-copy2(inspect.getfile(inspect.currentframe()), data_path)
