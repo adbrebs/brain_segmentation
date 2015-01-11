@@ -25,24 +25,26 @@ from spynet.utils.utilities import open_h5file
 
 
 if __name__ == '__main__':
+    """
+    Evaluate a trained network (with evaluation of the centroids with a single network)
+    """
 
-
-    experiment_path = "./experiments/final_3_patches_random_conv/"
-    data_path = "./datasets/final_3_patches_random/"
+    experiment_path = "./experiments/best_so_far/"
+    data_path = "./datasets/test_iter/"
     cf_data = imp.load_source("cf_data", data_path + "cfg_testing_data_creation.py")
 
     # Load the network
-    net = NetworkThreePatchesConv()
-    net.init(29, 135)
+    net = NetworkUltimateConv()
+    net.init(29, 29, 13, 134, 135)
     net.load_parameters(open_h5file(experiment_path + "net.net"))
     n_out = net.n_out
 
     # Load the scaler
-    # scaler = pickle.load(open(experiment_path + "s.scaler", "rb"))
-    scaler = None
+    scaler = pickle.load(open(experiment_path + "s.scaler", "rb"))
+    # scaler = None
 
     # Files on which to evaluate the network
-    file_list = list_miccai_files(**{"mode": "idx_files", "path": "./datasets/miccai/2/", "idx_files": [2]})
+    file_list = list_miccai_files(**{"mode": "idx_files", "path": "./datasets/miccai/2/", "idx_files": range(20)})
     n_files = len(file_list)
 
     # Options for the generation of the dataset
@@ -59,16 +61,11 @@ if __name__ == '__main__':
     data_gen.init_from(file_list, pick_vx, pick_patch, pick_tg)
 
     # Evaluate the centroids
-    # net_wo_centroids_path = "./experiments/report_3_patches_balanced_conv/"
-    # net_wo_centroids = NetworkThreePatchesConv()
-    # net_wo_centroids.init(29, 135)
-    # net_wo_centroids.load_parameters(open_h5file(net_wo_centroids_path + "net.net"))
-    # ds_testing = DatasetBrainParcellation()
-    # ds_testing.read(data_path + "train.h5")
-    # pred_wo_centroids = np.argmax(net_wo_centroids.predict(ds_testing.inputs, 1000), axis=1)
-    # region_centroids = RegionCentroids(134)
-    # region_centroids.update_barycentres(ds_testing.vx, pred_wo_centroids)
-    region_centroids = None
+    data_cf_train = imp.load_source("cf_data", data_path + "cfg_training_data_creation.py")
+    ds_train_temp = DatasetBrainParcellation()
+    ds_train_temp.populate_from_config(data_cf_train)
+    region_centroids = RegionCentroids(134)
+    region_centroids.update_barycentres(ds_train_temp.vx, np.argmax(ds_train_temp.outputs, axis=1))
 
     # Generate and evaluate the dataset
     start_time = time.clock()

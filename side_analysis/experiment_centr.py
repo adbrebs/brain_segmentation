@@ -25,6 +25,10 @@ from spynet.data.utils_3d.pick_patch import *
 
 
 class ExperimentBrain(Experiment):
+    """
+    Experiment to measure the benefits of the approximated distances to centroids and the point of iterating these
+    approximations.
+    """
     def __init__(self, exp_name):
         Experiment.__init__(self, exp_name)
 
@@ -82,7 +86,6 @@ def compute_centroids_estimate(ds, net_wo_centroids, net_centroids, scaler, n_it
     scaler.scale(ds.inputs)
 
     # New evaluations
-
     for i in range(n_iter):
         d = compute_dice(pred, np.argmax(ds.outputs, axis=1), 134)
         print np.mean(d)

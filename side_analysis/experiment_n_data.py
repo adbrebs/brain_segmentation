@@ -21,9 +21,12 @@ from spynet.utils.utilities import tile_raster_images
 
 from spynet.utils.utilities import load_config
 from data_brain_parcellation import generate_and_save
-
+import os
 
 class ExperimentBrain(Experiment):
+    """
+    Evaluate the influence of the size of the training dataset
+    """
     def __init__(self, exp_name):
         Experiment.__init__(self, exp_name)
 
@@ -32,22 +35,28 @@ class ExperimentBrain(Experiment):
 
     def run(self):
 
-        data_path = "./datasets/final_exp_size_patch/"
-        range_patch_size = np.arange(3, 37, 2)
-        error_rates = np.zeros(range_patch_size.shape)
-        dice_coeffs = np.zeros(range_patch_size.shape)
+        data_path = "./datasets/final_exp_n_data/"
+        range_n_data = np.arange(1000, 10000, 1000)
+        error_rates = np.zeros(range_n_data.shape)
+        dice_coeffs = np.zeros(range_n_data.shape)
 
-        for idx, patch_size in enumerate(range_patch_size):
+        for idx, n_data in enumerate(range_n_data):
 
-            print "patch width {}".format(patch_size)
+            print "patch width {}".format(n_data)
 
             ### Load the config file
             data_cf_train = load_config("cfg_training_data_creation.py")
             data_cf_test = load_config("cfg_testing_data_creation.py")
+
+            # Create the folder if it does not exist
+            if not os.path.exists(data_path):
+                os.makedirs(data_path)
             data_cf_train.data_path = data_path
             data_cf_test.data_path = data_path
-            data_cf_train.pick_features[0]["patch_width"] = patch_size
-            data_cf_test.pick_features[0]["patch_width"] = patch_size
+            data_cf_train.general["file_path"] = data_path + "train.h5"
+            data_cf_test.general["file_path"] = data_path + "test.h5"
+
+            data_cf_train.general["n_data"] = n_data
 
             ### Generate and write on file the dataset
             generate_and_save(data_cf_train)
@@ -80,7 +89,7 @@ class ExperimentBrain(Experiment):
             ###### Create the network
 
             net = MLP()
-            net.init([patch_size**2, patch_size**2, patch_size**2, patch_size**2, 135])
+            net.init([29**2, 1000, 1000, 1000, 135])
 
             print net
 
@@ -130,15 +139,15 @@ class ExperimentBrain(Experiment):
         print dice_coeffs
 
         plt.figure()
-        plt.plot(range_patch_size, error_rates, label="Validation error rates")
-        plt.plot(range_patch_size, dice_coeffs, label="Validation dice coefficient")
+        plt.plot(range_n_data, error_rates, label="Validation error rates")
+        plt.plot(range_n_data, dice_coeffs, label="Validation dice coefficient")
 
-        plt.xlabel('Patch size')
+        plt.xlabel('Size of the training dataset')
         plt.savefig(self.path + "res.png")
         tikz_save(self.path + "res.tikz", figureheight = '\\figureheighttik', figurewidth = '\\figurewidthtik')
 
 
 if __name__ == '__main__':
 
-    exp = ExperimentBrain("final_exp_size_patch")
+    exp = ExperimentBrain("final_exp_n_data_10000")
     exp.run()

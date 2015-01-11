@@ -269,7 +269,7 @@ class DatasetBrainParcellation(Dataset):
     Specialized dataset class for the brain parcellation data.
     Attributes:
         vx(array n_data x 3): Array containing the coordinates x, y, z of the voxels
-        file_id(array n_data x 3): Array containing the file id of the datapoint
+        file_ids(array n_data x 3): Array containing the file id of the datapoint
     """
     def __init__(self):
         Dataset.__init__(self)
@@ -281,15 +281,15 @@ class DatasetBrainParcellation(Dataset):
     def populate_from_config(self, config):
         data_generator = DataGeneratorBrain()
         data_generator.init_from_config(config)
-        vx, inputs, outputs, file_id = data_generator.generate_parallel(config.general["n_data"])
-        self.populate(inputs, outputs, vx, file_id)
+        vx, inputs, outputs, file_ids = data_generator.generate_parallel(config.general["n_data"])
+        self.populate(inputs, outputs, vx, file_ids)
         self.shuffle_data()
 
-    def populate(self, inputs, outputs, vx, file_id):
+    def populate(self, inputs, outputs, vx, file_ids):
         self.inputs = inputs
         self.outputs = outputs
         self.vx = vx
-        self.file_ids = file_id
+        self.file_ids = file_ids
 
     def shuffle_data_virtual(self, perm):
         self.vx = self.vx[perm]
@@ -305,7 +305,7 @@ class DatasetBrainParcellation(Dataset):
 
     def duplicate_datapoints_slice_virtual(self, ds, slice_idx):
         ds.vx = self.vx[slice_idx]
-        ds.file_id = self.file_ids
+        ds.file_ids = self.file_ids
         pass
 
 

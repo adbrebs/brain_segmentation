@@ -23,7 +23,11 @@ from spynet.utils.utilities import load_config
 from data_brain_parcellation import generate_and_save
 import os
 
+
 class ExperimentBrain(Experiment):
+    """
+    Evaluate the influence of the number of layers
+    """
     def __init__(self, exp_name):
         Experiment.__init__(self, exp_name)
 
@@ -32,14 +36,14 @@ class ExperimentBrain(Experiment):
 
     def run(self):
 
-        data_path = "./datasets/final_exp_n_data/"
-        range_n_data = np.arange(1000, 10000, 1000)
-        error_rates = np.zeros(range_n_data.shape)
-        dice_coeffs = np.zeros(range_n_data.shape)
+        data_path = "./datasets/final_exp_n_layers_2000/"
+        range_n_layers = np.arange(0, 6, 1)
+        error_rates = np.zeros(range_n_layers.shape)
+        dice_coeffs = np.zeros(range_n_layers.shape)
 
-        for idx, n_data in enumerate(range_n_data):
+        for idx, n_layers in enumerate(range_n_layers):
 
-            print "patch width {}".format(n_data)
+            print "patch width {}".format(n_layers)
 
             ### Load the config file
             data_cf_train = load_config("cfg_training_data_creation.py")
@@ -52,8 +56,6 @@ class ExperimentBrain(Experiment):
             data_cf_test.data_path = data_path
             data_cf_train.general["file_path"] = data_path + "train.h5"
             data_cf_test.general["file_path"] = data_path + "test.h5"
-
-            data_cf_train.general["n_data"] = n_data
 
             ### Generate and write on file the dataset
             generate_and_save(data_cf_train)
@@ -86,7 +88,7 @@ class ExperimentBrain(Experiment):
             ###### Create the network
 
             net = MLP()
-            net.init([29**2, 1000, 1000, 1000, 135])
+            net.init([29**2] + [2000]*n_layers +[135])
 
             print net
 
@@ -136,15 +138,15 @@ class ExperimentBrain(Experiment):
         print dice_coeffs
 
         plt.figure()
-        plt.plot(range_n_data, error_rates, label="Validation error rates")
-        plt.plot(range_n_data, dice_coeffs, label="Validation dice coefficient")
+        plt.plot(range_n_layers, error_rates, label="Validation error rates")
+        plt.plot(range_n_layers, dice_coeffs, label="Validation dice coefficient")
 
-        plt.xlabel('Size of the training dataset')
+        plt.xlabel('Number of layers')
         plt.savefig(self.path + "res.png")
         tikz_save(self.path + "res.tikz", figureheight = '\\figureheighttik', figurewidth = '\\figurewidthtik')
 
 
 if __name__ == '__main__':
 
-    exp = ExperimentBrain("final_exp_n_data_10000")
+    exp = ExperimentBrain("final_exp_n_layers_2000")
     exp.run()

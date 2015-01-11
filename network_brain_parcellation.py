@@ -151,7 +151,7 @@ class NetworkCentroids(Network):
         neuron_relu = neuron_type.NeuronRELU()
 
         # Layer 0
-        block0 = LayerBlockNoise()
+        block0 = LayerBlockGaussianNoise()
 
         # Layer 1
         n_neurons_1 = 200
@@ -950,8 +950,8 @@ class NetworkUltimateConv(Network):
         self.patch_width_3d = None
         self.n_centroids = None
 
-    def init(self, patch_width, patch_width_3d, n_centroids, n_out):
-        Network.init_common(self, 6 * patch_width**2 + patch_width_3d**3 + n_centroids, n_out)
+    def init(self, patch_width, patch_width_comp, patch_width_3d, n_centroids, n_out):
+        Network.init_common(self, 3 * patch_width**2 + 3 * patch_width_comp**2 + patch_width_3d**3 + n_centroids, n_out)
 
         self.patch_width = patch_width
         self.patch_width_3d = patch_width_3d
@@ -961,10 +961,9 @@ class NetworkUltimateConv(Network):
         neuron_relu = neuron_type.NeuronRELU()
 
         # Layer 0
-        interval = patch_width ** 2
-        self.ls_layers.append(LayerDivideFeatures(range(0, 6*interval+1, interval)
-                                                  + [6*interval + self.patch_width_3d**3]
-                                                  + [self.n_in]))
+
+        splits = [0] + [patch_width**2]*3 + [patch_width_comp**2]*3 + [self.patch_width_3d**3] + [n_centroids]
+        self.ls_layers.append(LayerDivideFeatures(np.cumsum(splits)))
 
         # Layer 1
         kernel_height0 = 5
@@ -978,7 +977,7 @@ class NetworkUltimateConv(Network):
                                       poolsize=(pool_size_height0, pool_size_width0))
 
         block1 = LayerBlockConvPool2D(neuron_relu,
-                                      in_shape=(1, patch_width, patch_width),
+                                      in_shape=(1, patch_width_comp, patch_width_comp),
                                       flt_shape=(n_kern0, 1, kernel_height0, kernel_width0),
                                       poolsize=(pool_size_height0, pool_size_width0))
 
@@ -1010,16 +1009,18 @@ class NetworkUltimateConv(Network):
                                       flt_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
                                       poolsize=(pool_size_height1, pool_size_width1))
 
+        filter_map_height1_comp = (patch_width_comp - kernel_height0 + 1) / pool_size_height0
+        filter_map_width1_comp = (patch_width_comp - kernel_width0 + 1) / pool_size_width0
         block3 = LayerBlockConvPool2D(neuron_relu,
-                                      in_shape=(n_kern0, filter_map_height1, filter_map_width1),
+                                      in_shape=(n_kern0, filter_map_height1_comp, filter_map_width1_comp),
                                       flt_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
                                       poolsize=(pool_size_height1, pool_size_width1))
         block4 = LayerBlockConvPool2D(neuron_relu,
-                                      in_shape=(n_kern0, filter_map_height1, filter_map_width1),
+                                      in_shape=(n_kern0, filter_map_height1_comp, filter_map_width1_comp),
                                       flt_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
                                       poolsize=(pool_size_height1, pool_size_width1))
         block5 = LayerBlockConvPool2D(neuron_relu,
-                                      in_shape=(n_kern0, filter_map_height1, filter_map_width1),
+                                      in_shape=(n_kern0, filter_map_height1_comp, filter_map_width1_comp),
                                       flt_shape=(n_kern1, n_kern0, kernel_height1, kernel_width1),
                                       poolsize=(pool_size_height1, pool_size_width1))
 
@@ -1036,7 +1037,10 @@ class NetworkUltimateConv(Network):
         # Layer 4
         filter_map_height2 = (filter_map_height1 - kernel_height1 + 1) / pool_size_height1
         filter_map_with2 = (filter_map_width1 - kernel_width1 + 1) / pool_size_width1
-        n_in2 = 6 * n_kern1 * filter_map_height2 * filter_map_with2 + n_out_2_3 + n_centroids
+        filter_map_height2_comp = (filter_map_height1_comp - kernel_height1 + 1) / pool_size_height1
+        filter_map_with2_comp = (filter_map_width1_comp - kernel_width1 + 1) / pool_size_width1
+        n_in2 = 3 * n_kern1 * filter_map_height2 * filter_map_with2 + \
+                3 * n_kern1 * filter_map_height2_comp * filter_map_with2_comp + n_out_2_3 + n_centroids
         n_out2 = 3000
         block0 = LayerBlockFullyConnected(neuron_relu, n_in=n_in2, n_out=n_out2)
         self.ls_layers.append(LayerOfBlocks([block0]))
@@ -1063,7 +1067,7 @@ class NetworkUltimateConv(Network):
         self.patch_width = int(h5file.attrs["patch_width"])
         self.patch_width_3d = int(h5file.attrs["patch_width_3d"])
         self.n_centroids = int(h5file.attrs["n_centroids"])
-        self.init(self.patch_width, self.patch_width_3d, self.n_centroids, self.n_out)
+        self.init(self.patch_width, 29, self.patch_width_3d, self.n_centroids, self.n_out)
 
 
 

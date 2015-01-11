@@ -25,15 +25,17 @@ from spynet.utils.utilities import open_h5file
 
 
 if __name__ == '__main__':
+    """
+    Compute the segmentations of the testing brains with the trained networks (with approximation of the centroids)
+    """
 
-
-    experiment_path = "./experiments/report_ultimate_random_conv/"
-    data_path = "./datasets/report_ultimate_random/"
+    experiment_path = "./experiments/test_iter_0/"
+    data_path = "./datasets/test_iter/"
     cf_data = imp.load_source("cf_data", data_path + "cfg_testing_data_creation.py")
 
     # Load the network
     net = NetworkUltimateConv()
-    net.init(29, 13, 134, 135)
+    net.init(29, 29, 13, 134, 135)
     net.load_parameters(open_h5file(experiment_path + "net.net"))
     n_out = net.n_out
 

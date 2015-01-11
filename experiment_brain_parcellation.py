@@ -18,9 +18,13 @@ from spynet.training.cost_function import *
 from spynet.training.learning_update import *
 from spynet.experiment import Experiment
 from spynet.utils.utilities import tile_raster_images
+import theano
 
 
 class ExperimentBrain(Experiment):
+    """
+    Main experiment to train a network on a dataset
+    """
     def __init__(self, exp_name, data_path):
         Experiment.__init__(self, exp_name, data_path)
 
@@ -30,12 +34,20 @@ class ExperimentBrain(Experiment):
     def run(self):
         ###### Create the datasets
 
+        # aa = CostNegLLWeighted(np.array([0.9, 0.1]))
+        # e = theano.function(inputs=[], outputs=aa.test())
+        # print e()
+
         ## Load the data
         training_data_path = self.data_path + "train.h5"
         ds_training = DatasetBrainParcellation()
         ds_training.read(training_data_path)
 
-        [ds_training, ds_validation, ds_testing] = ds_training.split_dataset_proportions([0.7, 0.15, 0.15])
+        [ds_training, ds_validation] = ds_training.split_dataset_proportions([0.95, 0.05])
+
+        testing_data_path = self.data_path + "test.h5"
+        ds_testing = DatasetBrainParcellation()
+        ds_testing.read(testing_data_path)
 
         ## Display data sample
         # image = PIL.Image.fromarray(tile_raster_images(X=ds_training.inputs[0:50],
@@ -45,25 +57,26 @@ class ExperimentBrain(Experiment):
 
         ## Few stats about the targets
         classes, proportion_class = analyse_classes(np.argmax(ds_training.outputs, axis=1), "Training data:")
-
+        print classes
         ## Scale some part of the data
-        # print "Scaling"
-        # s = Scaler([slice(-134, None, None)])
-        # s.compute_parameters(ds_training.inputs)
-        # s.scale(ds_training.inputs)
-        # s.scale(ds_validation.inputs)
-        # pickle.dump(s, open(self.path + "s.scaler", "wb"))
+        print "Scaling"
+        s = Scaler([slice(-134, None, None)])
+        s.compute_parameters(ds_training.inputs)
+        s.scale(ds_training.inputs)
+        s.scale(ds_validation.inputs)
+        s.scale(ds_testing.inputs)
+        pickle.dump(s, open(self.path + "s.scaler", "wb"))
 
         ###### Create the network
-        net = NetworkThreePatchesMLP()
-        net.init(29, 135)
+        net = NetworkUltimateConv()
+        net.init(33, 29, 5, 134, 135)
 
         print net
 
         ###### Configure the trainer
 
         # Cost function
-        cost_function = CostNegLL()
+        cost_function = CostNegLL(net.ls_params)
 
         # Learning update
         learning_rate = 0.05
@@ -73,8 +86,8 @@ class ExperimentBrain(Experiment):
         # Create monitors and add them to the trainer
         freq = 1
         freq2 = 0.00001
-        err_training = MonitorErrorRate(freq, "Train", ds_training)
-        err_testing = MonitorErrorRate(freq, "Test", ds_testing)
+        # err_training = MonitorErrorRate(freq, "Train", ds_training)
+        # err_testing = MonitorErrorRate(freq, "Test", ds_testing)
         err_validation = MonitorErrorRate(freq, "Val", ds_validation)
         # dice_training = MonitorDiceCoefficient(freq, "Train", ds_training, 135)
         dice_testing = MonitorDiceCoefficient(freq, "Test", ds_testing, 135)
@@ -91,7 +104,7 @@ class ExperimentBrain(Experiment):
         batch_size = 200
         t = Trainer(net, cost_function, params_selector, [max_epoch, early_stopping],
                     lr_update, ds_training, batch_size,
-                    [err_training, err_validation, err_testing, dice_testing])
+                    [err_validation, dice_testing])
 
         ###### Train the network
 
@@ -104,8 +117,8 @@ class ExperimentBrain(Experiment):
         # print "Dice test: {}".format(np.mean(d))
         # print "Error rate test: {}".format(error_rate(np.argmax(ds_testing.outputs, axis=1), pred))
 
-        save_records_plot(self.path, [err_training, err_validation, err_testing], "err", t.n_train_batches, "upper right")
-        save_records_plot(self.path, [dice_testing], "dice", t.n_train_batches, "lower right")
+        save_records_plot(self.path, [err_validation], "err", t.n_train_batches, "upper right")
+        # save_records_plot(self.path, [dice_testing], "dice", t.n_train_batches, "lower right")
 
         ###### Save the network
 
@@ -114,8 +127,8 @@ class ExperimentBrain(Experiment):
 
 if __name__ == '__main__':
 
-    exp_name = "final_3_patches_random_no_share"
-    data_path = "./datasets/final_3_patches_random/"
+    exp_name = "paper_ultimate_conv"
+    data_path = "./datasets/paper_ultimate_conv/"
 
     exp = ExperimentBrain(exp_name, data_path)
     exp.run()
